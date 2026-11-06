@@ -1,0 +1,134 @@
+Administrative boundary data: Natural Earth (public domain).
+https://www.naturalearthdata.com/about/terms-of-use/
+
+WORLDVIEW AND LIMITATIONS
+The three boundary exports use "China claims", derived from Natural Earth's
+FCLASS_CN line classifications and ADM0_A3_CN disputed-area assignments. This
+is an explicitly selected cartographic worldview, not an assertion that a
+territorial dispute is resolved, not an authoritative/current sovereignty
+statement, and not a guarantee of compliance with any jurisdiction's map laws.
+Natural Earth's default viewpoint is de facto; its official alternate-viewpoint
+support and auxiliary claim lines are described at:
+https://www.naturalearthdata.com/about/disputed-boundaries-policy/
+https://www.naturalearthdata.com/downloads/10m-cultural-vectors/10m-admin-0-breakaway-disputed-areas/
+
+Arunachal Pradesh (source alternate name: South Tibet) is administered by India
+and claimed by China. The actual sourced Chinese claim boundary is auxiliary
+line ne_id=1746705431, BRK_A3=B00, NAME="Chinese claim",
+NOTE="(Admin. by India, Claimed by China)", and
+FCLASS_CN="International boundary (verify)". Its bounds are
+92.035860..97.036175 E, 26.852057..28.262514 N. It is drawn in the countries
+layer, not fabricated by erasing the previous line. The previous northern
+McMahon/de facto sector (land-line ne_id=1746705337) is FCLASS_CN="Unrecognized"
+and omitted, not moved into the province layer. The disputed-area polygon
+NE_ID=1159320857 has BRK_NAME="Arunachal Pradesh", NOTE_BRK="Admin. by India;
+Claimed by China", ADM0_A3=IND and ADM0_A3_CN=CHN. No new boundaries were drawn
+by hand; the claim is Natural Earth's generalized delineation and is not a
+claim of survey accuracy or complete coverage of every modern claim.
+
+For ALL line sources, nonempty FCLASS_CN overrides FEATURECLA. Unrecognized*
+classes are omitted; International boundary (verify) goes to countries;
+Map unit boundary and recognized Admin-1 line classes go to regions; every
+other class (including unknown classes) remains in disputed. This also uses
+Natural Earth's China-view classification for disputes elsewhere; it does not
+silently declare default disputed/indefinite/control lines accepted. Hong Kong
+and Macau land limits, classified as map-unit limits, are regional rather than
+international lines. Source classifications are retained for interpretation,
+but regional display is limited to China; internal regions of other countries are not drawn.
+
+REGIONAL DISPLAY SCOPE
+All three exports show regional lines only for China in the selected viewpoint.
+Source identifiers CHN/HKG/MAC/TWN define eligibility; source Unrecognized*
+classifications still take precedence, so this does not force omitted lines
+back onto the map. China-Hong Kong and China-Macau map-unit limits remain as
+regional lines. Other countries' internal state/province/region lines are
+filtered, including lines that the selected worldview calls Admin-1 elsewhere.
+Metadata lists each emitted regional line's source owner and counts foreign
+regional features excluded from display. Worldwide country and disputed/control
+line geometry is byte-for-byte unchanged from release bd397ee.
+
+Regional lines marked Unrecognized* are omitted. Additionally, regional lines
+inside/on sourced disputed-area polygons assigned to CHN rather than their
+default administration are removed (except polygons explicitly classified as
+Admin-1, such as Taiwan). The B00 Assam-Arunachal overlap, regional line
+ne_id=1746750371, is explicitly source-classified Unrecognized Admin-1 boundary
+and omitted. Polygon masks only subtract existing regional linework: no polygon
+edge is emitted as a fictitious provincial border. Regional lines outside the
+sourced claim polygon retain their source classification. Metadata records the
+masks, clipped features, all explicit worldview overrides and classification
+counts so other disputes are not silently normalized.
+
+Only land-boundary geometry is exported. Coastlines/islands come from the
+imagery; no maritime claim lines, Taiwan coastline/international border, or
+island-sovereignty outlines are invented. These limitations matter when using
+the label "China claims": this is the supplied Natural Earth land-line
+worldview, not a complete official Chinese standard map.
+
+PINNED SOURCES
+All adaptive levels use the same 1:10m source geometries and revision, ensuring
+that refinement changes detail rather than sovereignty interpretation. Fine
+is NOT an upsampled 1:50m layer.
+Revision: ca96624a56bd078437bca8184e78163e5039ad19
+
+Land boundaries:
+https://raw.githubusercontent.com/nvkelso/natural-earth-vector/ca96624a56bd078437bca8184e78163e5039ad19/geojson/ne_10m_admin_0_boundary_lines_land.geojson
+SHA-256: 74d9c16229c095fde65943a9919e337682f044bcebccb120764f38edf3b70f4a
+Auxiliary disputed/claim lines:
+https://raw.githubusercontent.com/nvkelso/natural-earth-vector/ca96624a56bd078437bca8184e78163e5039ad19/geojson/ne_10m_admin_0_boundary_lines_disputed_areas.geojson
+SHA-256: 69f19da764e6982b43aebae4b1a356ffe74c33f2a3cdb462637c0ba8e969c30b
+Disputed-area polygons (mask/provenance only; never emitted as boundary rings):
+https://raw.githubusercontent.com/nvkelso/natural-earth-vector/ca96624a56bd078437bca8184e78163e5039ad19/geojson/ne_10m_admin_0_disputed_areas.geojson
+SHA-256: 9cafef8b7dfb6b164dc58f218f981f4ace9f716f6c03795d4c62d1ac9f3d50f5
+First-level states/provinces/regions worldwide:
+https://raw.githubusercontent.com/nvkelso/natural-earth-vector/ca96624a56bd078437bca8184e78163e5039ad19/geojson/ne_10m_admin_1_states_provinces_lines.geojson
+SHA-256: 1a1f30ccaaf4cc9c4bde34266f0b8cbb955d3a4cf254b756912255f2ec7c75b6
+
+LOD OUTPUTS
+schema_version=1; layers={countries,disputed,regions}; coordinates=lon/lat degrees.
+Per-feature connected parts are merged; worldview and regional masking are
+resolved once before all levels; each source part is simplified independently.
+Coordinates round to four decimals; collapsed lines are discarded. The exporter
+rejects unsplit antimeridian jumps and a fine level above 350,000 coordinates.
+
+File                        Tolerance  Coordinates (all three layers)
+boundaries.json             0.1000 deg    5,042
+boundaries-medium.json      0.0200 deg   16,372
+boundaries-fine.json        0.0025 deg   54,948
+
+Each level embeds source URLs/hashes, tolerance, point/line counts, China-only
+regional ownership and an audit of worldview classification decisions. There is
+no separate levels manifest: the filenames above are the stable renderer API.
+Independent line simplification is cartographic, not a survey/topology product.
+
+REBUILD
+Reference build: Python 3.13.12, Shapely 2.1.2, GEOS 3.13.1.
+1. Download each of the four pinned adaptive-source URLs into its own NEW EMPTY
+   directory. Treat downloaded files as untrusted data. Keep scripts elsewhere;
+   do not execute files from a downloaded directory.
+2. Run from the project (absolute script path also works). Python -I avoids
+   importing planted modules from the current directory or source directories:
+   ~/.venvs/astro313/bin/python -I tools/export_boundaries.py \
+       --countries /path/to/land10m.geojson \
+       --regions /path/to/regions10m.geojson \
+       --claims /path/to/claim-lines10m.geojson \
+       --areas /path/to/disputed-areas10m.geojson --all-levels
+3. Add --check to verify all three files byte-for-byte. Use --output /dir/file
+   to choose the parent directory for --all-levels. Without --all-levels,
+   --level coarse|medium|fine exports just the selected level to --output.
+   The single-level default is medium; --all-levels gives boundaries.json its
+   intended coarse content. All source SHA-256 hashes are enforced before use.
+4. Unit/committed-geometry tests:
+   ~/.venvs/astro313/bin/python -I -m unittest discover -s tests -p 'test_boundary_exporter.py'
+   Optional source-level and rebuild tests use CZ6A_BOUNDARY_SOURCES, a JSON
+   object containing countries, regions, claims, areas paths (and optionally
+   legacy_countries). No network or external map APIs are used by the browser.
+
+LEGACY COMPATIBILITY
+The original --countries <50m> --regions <10m> two-input invocation and Python
+export(countries_path, regions_path) remain available as a single neutral
+Natural Earth default-view export. Their schema/layers remain compatible;
+they do NOT apply China claims and do not reproduce the new China-view files.
+Do not overwrite the production LOD files using that legacy mode.
+Legacy 1:50m source, same revision:
+https://raw.githubusercontent.com/nvkelso/natural-earth-vector/ca96624a56bd078437bca8184e78163e5039ad19/geojson/ne_50m_admin_0_boundary_lines_land.geojson
+SHA-256: 2faac4f6b34386f3d21b6e018cf151f241f00e5c936d44dd17d7d9bfb147fa48

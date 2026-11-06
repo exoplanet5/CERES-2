@@ -1,0 +1,126 @@
+{
+ "ceres1": [
+  {
+   "vehicle": "CERES-1",
+   "m0_t": 32.56,
+   "payload_kg": 300.0,
+   "s1": {
+    "az": 191.16,
+    "kick": 1.94,
+    "t": 73.9,
+    "h": 42.4,
+    "v": 1350,
+    "fpa": 77.8,
+    "impact_km": 88.0
+   },
+   "s2": {
+    "t": 145.4,
+    "h": 138.5,
+    "v": 2672,
+    "fpa": 23.7,
+    "impact_km": 900.0,
+    "fit": 2.6493931377185968e-24
+   },
+   "s3": {
+    "t": 233.4,
+    "h": 223.4,
+    "v": 6.436,
+    "fpa": 9.6,
+    "i": 97.13,
+    "impact_km": 5571.9,
+    "impact_t": 1297,
+    "fit": 3.363297306107155e-24
+   },
+   "s4": {
+    "burn_s": 597.9,
+    "prop_used_kg": 315,
+    "load_kg": 300,
+    "cost": 3.782820554064034e-13
+   }
+  },
+  {
+   "vehicle": "CERES-1",
+   "m0_t": 32.56,
+   "payload_kg": 300.0,
+   "s1": {
+    "az": 191.16,
+    "kick": 1.94,
+    "t": 73.9,
+    "h": 42.4,
+    "v": 1350,
+    "fpa": 77.8,
+    "impact_km": 88.0
+   },
+   "s2": {
+    "t": 145.4,
+    "h": 148.5,
+    "v": 2834,
+    "fpa": 33.3,
+    "impact_km": 1100.0,
+    "fit": 4.8788292879749415e-24
+   },
+   "s3": {
+    "t": 233.4,
+    "h": 261.4,
+    "v": 6.389,
+    "fpa": 9.4,
+    "i": 97.12,
+    "impact_km": 5571.9,
+    "impact_t": 1304,
+    "fit": 2.535077618457154e-25
+   },
+   "s4": {
+    "burn_s": 592.6,
+    "prop_used_kg": 312,
+    "load_kg": 300,
+    "cost": 2.4318704216159977e-24
+   }
+  }
+ ],
+ "zk1a": [
+  {
+   "vehicle": "ZK-1A",
+   "m0_t": 130.83,
+   "payload_kg": 1500.0,
+   "s1": {
+    "az": 188.09,
+    "kick": 1.35,
+    "t": 92.0,
+    "h": 42.1,
+    "v": 1141,
+    "fpa": 67.1,
+    "impact_km": 114.8
+   },
+   "s2": {
+    "t": 178.5,
+    "h": 142.2,
+    "v": 3353,
+    "fpa": 20.1,
+    "impact_km": 1304.9,
+    "fit": 2.068868353717212e-23
+   },
+   "s3": {
+    "t": 264.5,
+    "h": 243.2,
+    "v": 6.275,
+    "fpa": 13.8,
+    "i": 93.37,
+    "impact_km": 6121.3,
+    "impact_t": 1466,
+    "fit": 6.189464044989356e-25
+   },
+   "s4": {
+    "s3_apogee_km": 561.1,
+    "plane_change_deg": 4.14,
+    "dv_need": 1853,
+    "dv_have": 2118
+   }
+  }
+ ],
+ "notes": {
+  "zk1a_plane": "The ZK-1A S3 plane fitted to its zone is about 93.4 deg, so its solid S4 carries a dogleg to 97.5 deg.",
+  "ceres1_s4": "The published CERES-1 Y19 failure was an early cutoff 'in the final phase' after 510 s of S4 burn.",
+  "ceres1_capability": "Published: 300 kg to 500 km SSO, lift-off about 33 t.",
+  "zk1a_capability": "Published: 1.5 t to 500 km SSO, lift-off 135 t. Solid S4 cannot stop, so a used load below 1.99 t means energy management, not spare payload."
+ }
+}
