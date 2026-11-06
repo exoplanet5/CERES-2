@@ -9,8 +9,8 @@ not live imagery. No terrain or additional detail is synthesized. The native
 source image is not copied into this repository. tex/tiles/manifest.json holds
 its SHA-256 and the SHA-256 of each exported tile. The finest level preserves
 the native global pixel dimensions; coarser levels use Lanczos resampling.
-Levels 2-3 (10800 and 21600 pixels wide) are used here; the 8192 x 4096 base
-globe covers coarser views.
+Levels 2-3 (10800 and 21600 pixels wide) are used here; the 4096 x 2048 and
+8192 x 4096 base globes cover coarser views.
 Each tile has a one-pixel longitude-wrapped, pole-clamped gutter for filtering.
 
 Rebuild: python -I tools/export_map_tiles.py
@@ -26,4 +26,6 @@ Base globe and other textures on this page:
   from SatObserver-MX (app/assets).
 - moon_1024.jpg: LROC Moon map, downsampled to 1024 x 512 from cislunar-eye
   (web/assets/moon_4096.jpg).
-- earth_day_4k.jpg, earth_night.jpg: lighter fallbacks for small screens and GPUs.
+- earth_day_4k.webp, earth_night_4k.webp: the maps the page opens on, resized from
+  the 8K maps above to 4096 x 2048 with Pillow (Lanczos, WebP quality 70, method 6).
+- earth_day_4k.jpg, earth_night.jpg: fallbacks if a browser cannot decode the WebP.

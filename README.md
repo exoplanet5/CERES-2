@@ -22,7 +22,7 @@ It needs an HTTP server, not `file://`. Everything is local. The page follows th
 
 The globe and sky:
 
-- **Earth:** 8K Blue Marble (September 2004) and 8K Black Marble 2016 from SatObserver-MX, with sharper Blue Marble tiles when zoomed in. Small screens get the lighter 4K pair.
+- **Earth:** Blue Marble (September 2004) and Black Marble 2016 from SatObserver-MX. The page opens on a light 4K pair of about 0.6 MB, then fetches what the view needs: Blue Marble tiles for sunlit ground when zoomed in, and the 8K maps on screens and views that can show them. Small screens stay on the 4K pair.
 - **Atmosphere:** a limb shell, blue where the air is sunlit and red along the terminator, plus a thin haze on the ground near the limb. It is an illustration, not a scattering calculation.
 - **Stars:** 9,827 Hipparcos stars after cislunar-eye's star background, in a separate rotation-only scene turning with GMST.
 - **Sun and Moon:** Sun glare at infinity, and a textured Moon at its true DE440s position and size, oriented to face the Earth. A label sits beside each when in view; otherwise a chevron on the screen edge points to it. The Moon is close to new at this T0, so it shows a dim disc with a very thin crescent.

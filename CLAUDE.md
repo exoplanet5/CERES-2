@@ -34,7 +34,7 @@ Everything runs with `~/.venvs/astro313/bin/python`. Serve the page with `python
 - **Zones (`js/jelly-zone.js`):** the grid holds only the elevation fields. The night clip is per pixel in the shader, from the same `sunDir` uniform as the Sun 0° line, so never put it back on the grid: that caused the stair-steps and the mismatch at the terminator. Area figures use the pickup epoch.
 - **Sky (`js/sky-background.js`):** stars and Sun are a separate rotation-only scene drawn before a depth clear, so `renderer.autoClear` is false. The scene is Earth-fixed, so stars turn at −GMST.
 - **Sprites:** canvas textures are sRGB and sprites do not write depth; otherwise colours wash out and sprite quads punch holes in later transparent layers.
-- **Tiles:** the 8K base covers up to 8192 px wide, so only tile levels 2–3 exist. `chooseLevel` takes the base width.
+- **Base maps and tiles:** the page opens on the 4K WebP pair, and `sharpenBase` swaps in the 8K maps only when the view needs them, so never block startup on 8K. The 8K base covers up to 8192 px wide, so only tile levels 2–3 exist. `chooseLevel` takes the current base width. Tiles carry day imagery only, so `candidates` skips any tile wholly past the day edge; keep `DAY_EDGE` in step with the fade in the Earth shader.
 - **Headless Chrome is slow:** allow a few seconds per view. Coverage is SwiftShader only unless noted.
 
 The page and the Python agree: pickup to 0.1 s, solid zone area to about 0.3 %. Recheck both after a change. Test in headless Chrome over CDP with `--use-angle=swiftshader --enable-unsafe-swiftshader`, using `window.__ceres2`.

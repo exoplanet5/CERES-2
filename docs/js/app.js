@@ -100,10 +100,10 @@ async function start() {
   const loader=new THREE.TextureLoader();
   const loadTex=(url)=>new Promise((resolve,reject)=>loader.load(url,(t)=>{t.colorSpace=THREE.NoColorSpace;t.anisotropy=renderer.capabilities.getMaxAnisotropy();resolve(t);},undefined,()=>reject(new Error(`Texture missing: ${url}`))));
   $('loadmsg').textContent='Loading Blue Marble…';
-  // 8K Blue Marble and Black Marble where the GPU and screen can hold them, the lighter pair otherwise.
+  // The light 4K pair opens the page. sharpenBase fetches the 8K maps afterwards, where the GPU and screen can hold them.
   const big=renderer.capabilities.maxTextureSize>=8192&&Math.min(innerWidth,innerHeight)>600;
-  const texPair=(hi,lo)=>big?loadTex(hi).catch(()=>loadTex(lo)):loadTex(lo);
-  const [dayTex,nightTex,boundaryRaw,moonTex,starCatalog]=await Promise.all([texPair('./tex/earth_day_8k.webp','./tex/earth_day_4k.jpg'),texPair('./tex/earth_night_8k.webp','./tex/earth_night.jpg'),fetchJSON('./data/boundaries.json'),loadTex('./tex/moon_1024.jpg'),fetchJSON('./data/hipparcos.json')]);
+  const lightTex=(webp,jpg)=>loadTex(webp).catch(()=>loadTex(jpg));
+  const [dayTex,nightTex,boundaryRaw,moonTex,starCatalog]=await Promise.all([lightTex('./tex/earth_day_4k.webp','./tex/earth_day_4k.jpg'),lightTex('./tex/earth_night_4k.webp','./tex/earth_night.jpg'),fetchJSON('./data/boundaries.json'),loadTex('./tex/moon_1024.jpg'),fetchJSON('./data/hipparcos.json')]);
   const boundaryData=validateBoundaries(boundaryRaw);
   const earthMat=new THREE.ShaderMaterial({uniforms:{dayTex:{value:dayTex},nightTex:{value:nightTex},sunDir:{value:new THREE.Vector3(1,0,0)},lights:{value:1},tileRect:{value:new THREE.Vector4(0,0,1,1)},imageRect:{value:new THREE.Vector4(0,0,1,1)}},
     vertexShader:`varying vec2 vUv;varying vec3 vP;void main(){vUv=uv;vP=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
@@ -131,7 +131,18 @@ async function start() {
         vec3 col=mix(vec3(1.0,0.40,0.14),vec3(0.32,0.58,1.0),smoothstep(-0.03,0.26,mu));
         gl_FragColor=vec4(col*density*lit*0.92,1.0);}`}));
   atmosphere.renderOrder=-1;scene.add(atmosphere);
-  const mapTiles=createMapTiles({scene,camera,renderer,earthMaterial:earthMat,loadTexture:loadTex,baseWidth:big?8192:4096});
+  const mapTiles=createMapTiles({scene,camera,renderer,earthMaterial:earthMat,loadTexture:loadTex,baseWidth:4096});
+  // Tiles sharpen only the day map, so the dark side gets the 8K night map once a view outgrows 4K. The 8K day map is
+  // needed only when too many lit tiles are in view to use them. A failed fetch keeps the light map.
+  let sharpenNight=big,sharpenDay=big;
+  const swapBase=(name,url)=>loadTex(url).then((texture)=>{const old=earthMat.uniforms[name].value;earthMat.uniforms[name].value=texture;old.dispose();});
+  function sharpenBase(){
+    if(!sharpenNight&&!sharpenDay)return;
+    const {level,requiredPixels}=mapTiles.stats();
+    if(requiredPixels<=4096*1.12)return;
+    if(sharpenNight){sharpenNight=false;swapBase('nightTex','./tex/earth_night_8k.webp').catch(()=>{});}
+    if(sharpenDay&&level<0){sharpenDay=false;swapBase('dayTex','./tex/earth_day_8k.webp').then(()=>mapTiles.setBaseWidth(8192)).catch(()=>{});}
+  }
   const skyBg=new StellarBackground(starCatalog),moon=createMoon(moonTex,earthMat.uniforms.sunDir);scene.add(moon);
   const boundaryLayer=createBoundaryLayer({scene,camera,initialData:boundaryData});
   const termGroup=group();termGroup.add(line(circle(90),{color:C.sun,width:1.8}),line(circle(102),{color:C.accent,width:1.5}));
@@ -285,7 +296,7 @@ async function start() {
     updateFootprint(s);gtGroup.visible=state.show.gt;gridGroup.visible=state.show.grid;zoneGroup.visible=state.show.zones;zoneLabels.visible=state.show.zones;jellyGroup.visible=state.show.jelly;visLayer.visible=state.show.vis;fallGroup.visible=state.show.falls;cityGroup.visible=state.show.cities;
     if(state.follow&&!cam.fly)cam.approach(new THREE.Vector3(...s.u),1-Math.exp(-dt*2.5));
     cam.update(now,dt);
-    mapTiles.update(now,view.clientWidth,view.clientHeight);
+    mapTiles.update(now,view.clientWidth,view.clientHeight);sharpenBase();
     boundaryLayer.update(now,view.clientWidth,view.clientHeight,renderer.getPixelRatio(),state.show.borders);
     for(const g of [zoneLabels,eventGroup])for(const o of g.children)if(o.isCSS2DObject)o.visible=state.show.labels&&visible(o.position);
     pickup.visible=!!J.pickup&&state.show.jelly;pickupLabel.visible=pickup.visible&&state.show.labels&&visible(pickup.position);shipLabel.visible=state.show.labels&&visible(ship.position);

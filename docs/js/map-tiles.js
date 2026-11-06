@@ -1,9 +1,12 @@
 import * as THREE from 'three';
 import {TILE_CONFIG,TileCache,worldPixels,projectedPixels,chooseLevel,tileBounds,llVector} from './map-lod.js';
 
+// The Earth shader fades the day map out by mu=-0.055, so a tile wholly beyond this angle from the Sun draws nothing from its texture.
+const DAY_EDGE=Math.acos(-.065);
+
 export function createMapTiles({scene,camera,renderer,earthMaterial,loadTexture,baseWidth=8192}){
   const group=new THREE.Group();scene.add(group);
-  const frustum=new THREE.Frustum(),matrix=new THREE.Matrix4(),direction=new THREE.Vector3();
+  const frustum=new THREE.Frustum(),matrix=new THREE.Matrix4(),direction=new THREE.Vector3(),sun=earthMaterial.uniforms.sunDir.value;
   let level=-1,required=0,last=-Infinity,lastView='',selection=[];
   const cache=new TileCache({load:async(tile)=>{
     const texture=await loadTexture(`./tex/tiles/${tile.key}.jpg`);
@@ -25,6 +28,7 @@ export function createMapTiles({scene,camera,renderer,earthMaterial,loadTexture,
       const tile=tileBounds(z,x,y),mid=new THREE.Vector3(...llVector((tile.west+tile.east)/2,(tile.south+tile.north)/2));
       const angle=((tile.east-tile.west)+(tile.north-tile.south))*Math.PI/360;
       if(Math.acos(Math.min(1,Math.max(-1,direction.dot(mid))))>horizon+angle)continue;
+      if(sun.dot(mid)<Math.cos(Math.min(Math.PI,DAY_EDGE+angle)))continue;
       tile.score=-camera.position.distanceTo(mid);   // nearest ground first in tilted views
       if(!frustum.intersectsSphere(new THREE.Sphere(mid,2*Math.sin(angle/2))))continue;
       tiles.push(tile);
@@ -34,7 +38,7 @@ export function createMapTiles({scene,camera,renderer,earthMaterial,loadTexture,
   function update(now,width,height){
     if(now-last>=160){
       last=now;
-      const key=[...camera.position.toArray(),...camera.quaternion.toArray(),camera.aspect,width,height,renderer.getPixelRatio()].map((x)=>x.toFixed(4)).join(',');
+      const key=[...camera.position.toArray(),...camera.quaternion.toArray(),camera.aspect,width,height,renderer.getPixelRatio()].map((x)=>x.toFixed(4)).join(',')+sun.toArray().map((x)=>x.toFixed(3)).join(',');
       if(key!==lastView){
         lastView=key;camera.updateMatrixWorld();matrix.multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse);frustum.setFromProjectionMatrix(matrix);
         required=projectedPixels(camera.position.length(),camera.fov,height,renderer.getPixelRatio());
@@ -47,5 +51,5 @@ export function createMapTiles({scene,camera,renderer,earthMaterial,loadTexture,
     for(const entry of cache.entries.values())if(entry.value)entry.value.mesh.visible=false;
     for(const entry of cache.ready())entry.value.mesh.visible=true;
   }
-  return {update,group,stats:()=>({...cache.stats(),level,requiredPixels:required,worldWidth:level>=0?worldPixels(level):baseWidth,nativeLimit:21600,estimatedTileBytes:cache.entries.size*(677**2)*4*4/3}),dispose:()=>{cache.clear();scene.remove(group);}};
+  return {update,group,setBaseWidth:(width)=>{baseWidth=width;lastView='';},stats:()=>({...cache.stats(),level,requiredPixels:required,worldWidth:level>=0?worldPixels(level):baseWidth,nativeLimit:21600,estimatedTileBytes:cache.entries.size*(677**2)*4*4/3}),dispose:()=>{cache.clear();scene.remove(group);}};
 }
