@@ -1,0 +1,29 @@
+Day-map tiles: NASA Blue Marble Next Generation, topography and bathymetry,
+September 2004. Shared source filename:
+world.topo.bathy.200409.3x21600x10800.jpg
+Source collection: https://visibleearth.nasa.gov/collection/1484/blue-marble
+NASA image-use guidance: https://www.nasa.gov/nasa-brand-center/images-and-media/
+
+Tiles are JPEG crops/resamplings of the locally supplied 21600 x 10800 source,
+not live imagery. No terrain or additional detail is synthesized. The native
+source image is not copied into this repository. tex/tiles/manifest.json holds
+its SHA-256 and the SHA-256 of each exported tile. The finest level preserves
+the native global pixel dimensions; coarser levels use Lanczos resampling.
+Levels 2-3 (10800 and 21600 pixels wide) are used here; the 8192 x 4096 base
+globe covers coarser views.
+Each tile has a one-pixel longitude-wrapped, pole-clamped gutter for filtering.
+
+Rebuild: python -I tools/export_map_tiles.py
+Verify:  python -I tools/export_map_tiles.py --check
+Requires Pillow. The exporter defaults to the shared image under ~/sda/basemaps/.
+Browser rendering and deployment require no Python, external imagery service
+or API key. NASA imagery attribution is retained in the viewer and README.
+
+Base globe and other textures on this page:
+- earth_day_8k.webp: NASA Blue Marble Next Generation, September 2004, 8192 x 4096,
+  from SatObserver-MX (app/assets).
+- earth_night_8k.webp: NASA Black Marble 2016 (Suomi NPP VIIRS), 8192 x 4096,
+  from SatObserver-MX (app/assets).
+- moon_1024.jpg: LROC Moon map, downsampled to 1024 x 512 from cislunar-eye
+  (web/assets/moon_4096.jpg).
+- earth_day_4k.jpg, earth_night.jpg: lighter fallbacks for small screens and GPUs.
