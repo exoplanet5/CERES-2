@@ -58,7 +58,7 @@ const CSS = `
 `;
 
 // styleAt(met, t0ms) -> {color, lit, powered}; seco: MET of SECO-1 (end of the powered, plume-making flight)
-export function createSkyChart({ shipAt, metEnd, styleAt, seco, vehicle, getState, onJump, fmtMET, sunSubpoint = A.sunSubpoint, sunPosition = null, onSite = () => {} }) {
+export function createSkyChart({ shipAt, metEnd, styleAt, seco, cutoffLabel = 'Cutoff', vehicle, getState, onJump, fmtMET, sunSubpoint = A.sunSubpoint, sunPosition = null, onSite = () => {} }) {
   const solarLook = (utc) => {
     if (!sunPosition) return A.altAzOfSubpoint(frame, sunSubpoint(utc));
     const p = A.lookAngles(frame, sunPosition(utc));
@@ -437,7 +437,7 @@ export function createSkyChart({ shipAt, metEnd, styleAt, seco, vehicle, getStat
       const s = shipAt(seco), la = A.lookAngles(frame, s.p), xy = project(la.az, la.el, m), c = styleAt(seco - 1, st.t0ms).color;
       ctx.save(); ctx.translate(xy.x, xy.y); ctx.rotate(Math.PI / 4);
       ctx.fillStyle = c; ctx.strokeStyle = '#080a0e'; ctx.lineWidth = 1; ctx.fillRect(-3.5, -3.5, 7, 7); ctx.strokeRect(-3.5, -3.5, 7, 7); ctx.restore();
-      ctx.font = '10px ' + MONO; haloText(`S4 cutoff ${fmtMET(seco)}`, xy.x + 7, xy.y + 9, '#e8eaed');
+      ctx.font = '10px ' + MONO; haloText(`${cutoffLabel} ${fmtMET(seco)}`, xy.x + 7, xy.y + 9, '#e8eaed');
     }
     // AOS / LOS at the 1-deg threshold
     ctx.font = '10px ' + MONO;

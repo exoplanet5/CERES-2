@@ -157,7 +157,7 @@ def main():
                    states=[dict(until=t_s2i, segs=["s1", "s2", "s3", "s4", "fairing"], zoom=1, burn="solid"), dict(until=t_s2 + 2.0, segs=["s2", "s3", "s4", "fairing"], zoom=1.2, burn="solid"),
                            dict(until=ev["Fairing jettison"]["t"], segs=["s3", "s4", "fairing"], zoom=1.7, burn=None), dict(until=t_s3 + 3.0, segs=["s3", "s4", "payload"], zoom=2.3, burn="solid"),
                            dict(segs=["s4", "payload"], zoom=3.2, burn="liquid")]),
-        observer_home="Golmud",
+        observer_home="Golmud", cutoff_label="S4 cutoff",
         # Corridor cities beyond the template's built-in list
         extra_cities=[["Delingha", 97.36, 37.37, 2], ["Thimphu", 89.64, 27.47, 2], ["Guwahati", 91.74, 26.14, 2], ["Dhaka", 90.41, 23.81, 1], ["Kolkata", 88.36, 22.57, 1],
                       ["Mandalay", 96.09, 21.96, 2], ["Bhubaneswar", 85.82, 20.30, 2], ["Yangon", 96.17, 16.84, 1], ["Port Blair", 92.74, 11.62, 2], ["Chennai", 80.27, 13.08, 1], ["Colombo", 79.86, 6.93, 1]],

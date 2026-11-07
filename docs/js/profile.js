@@ -101,6 +101,10 @@ export function validateMission(data) {
   if (m.jelly) require(finite(m.solid_end_met) && ['prime_sun_deg','clear_ray_km','high_km'].every((k) => finite(m.jelly[k])) && Array.isArray(m.jelly.stages) && Array.isArray(m.jelly.cities), 'Invalid meta.jelly: it needs solid_end_met, prime_sun_deg, clear_ray_km, high_km, stages and cities');
   if (m.stack) require(finite(m.stack.total_m) && finite(m.stack.burn_end) && Array.isArray(m.stack.states) && m.stack.states.length && m.stack.states.every((s) => s.segs.every((k) => m.stack.segments?.[k])), 'Invalid meta.stack');
   if (m.extra_cities) require(Array.isArray(m.extra_cities) && m.extra_cities.every((c) => c.length === 4 && typeof c[0] === 'string' && finite(c[1]) && finite(c[2]) && finite(c[3])), 'Invalid meta.extra_cities');
+  if (m.model_badge !== undefined) require(typeof m.model_badge === 'string' && m.model_badge.length <= 40, 'Invalid meta.model_badge');
+  if (m.cutoff_label !== undefined) require(typeof m.cutoff_label === 'string' && m.cutoff_label.length <= 24, 'Invalid meta.cutoff_label');
+  if (m.about !== undefined) require(Array.isArray(m.about) && m.about.every((t) => typeof t === 'string'), 'Invalid meta.about');
+  if (m.readme_url !== undefined) require(typeof m.readme_url === 'string' && /^https:\/\//.test(m.readme_url), 'Invalid meta.readme_url');
   return data;
 }
 

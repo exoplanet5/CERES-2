@@ -57,7 +57,7 @@ async function start() {
   $('subt').textContent=`${M.mission} · ${M.inc.toFixed(1)}° · ${M.orbit_revolutions} revolutions`;
   $('profile-summary').textContent=`${M.perigee_km.toFixed(0)} × ${M.apogee_km.toFixed(0)} km · i ${M.inc.toFixed(2)}°`;
   $('datev').textContent=M.date;
-  $('model-badge').textContent='Pre-launch model';
+  $('model-badge').textContent=M.model_badge??'Pre-launch model';
   $('c-zone').textContent=localZone.label;
   $('tle-note').textContent=`Model TLE for the modeled ${Math.round((M.perigee_km+M.apogee_km)/2)} km orbit, not a catalog element set. A changed T0 shifts epoch and RAAN for the same Earth-fixed path; the viewer uses numerical track samples, not SGP4 propagation.`;
   document.body.classList.toggle('no-jelly',!hasJelly);
@@ -207,7 +207,7 @@ async function start() {
   let fp=null,fpLam=-1;
   function updateFootprint(s){if(!state.show.fp){if(fp)fp.visible=false;return;}const lam=A.footprintDeg(s.alt,A.MIN_ELEVATION_DEG);if(!fp||Math.abs(lam-fpLam)>.03){if(fp){scene.remove(fp);fp.geometry.dispose();materials.delete(fp.material);fp.material.dispose();}fp=line(circle(lam),{color:C.footprint,dashed:true,width:1.5});scene.add(fp);fpLam=lam;}fp.quaternion.setFromUnitVectors(Y,new THREE.Vector3(...s.u));fp.visible=s.alt>1;}
   let skySite=null;
-  const sky=createSkyChart({shipAt,metEnd:()=>MET_END,styleAt,seco,vehicle:M.vehicle,fmtMET:A.fmtMET,sunSubpoint,
+  const sky=createSkyChart({shipAt,metEnd:()=>MET_END,styleAt,seco,cutoffLabel:M.cutoff_label??'Cutoff',vehicle:M.vehicle,fmtMET:A.fmtMET,sunSubpoint,
     sunPosition:sunAt,getState:()=>({met:state.met,t0ms:t0ms()}),onJump:(met)=>{setPlaying(false);setMet(met);},onSite:(site)=>{skySite=site;siteMark.position.set(...A.llToVec(site.lon,site.lat,1.001));}});
   function openSky(site,focus=false,near=null){sky.open(site,focus,near).catch((e)=>message(`Sky chart: ${e.message}`));}
   const [home,homeLon,homeLat]=ALL_CITIES.find((c)=>c[0]===M.observer_home)??[M.pad_name,...M.pad];
@@ -241,7 +241,8 @@ async function start() {
   $('link').onclick=()=>{const url=shareURL();history.replaceState(null,'',url);copyText(url,$('link'));};$('copytle').onclick=()=>copyText($('tle').textContent,$('copytle'));
   $('events').onclick=(e)=>{const row=e.target.closest('[data-met]');if(row){setPlaying(false);setMet(+row.dataset.met);}};
   $('legend').innerHTML=`<div>${M.flight_segments.map((k)=>`<span><i style="border-color:${data.tracks[k].color}"></i>${esc(data.tracks[k].label)}</span>`).join('')}${hasSolid?`<span><i style="border-color:${C.sun};border-top-width:3px"></i>Lit solid</span><span><i style="border-color:${C.s4}"></i>Lit S4</span>`:`<span><i style="border-color:${C.sun};border-top-width:3px"></i>Lit plume</span>`}</div><div><span><i class="d" style="border-color:${C.footprint}"></i>${A.MIN_ELEVATION_DEG}° circle</span>${hasJelly?`<span><i style="border-color:#fff"></i>${A.MIN_ELEVATION_DEG}° zone</span>`:''}<span><i style="border-color:${C.sun}"></i>Sun 0°</span><span><i style="border-color:${C.accent}"></i>Sun −12°</span></div>`;
-  $('about').innerHTML=`<p>Pre-launch model fitted to the NOTAM zones and public vehicle figures; not telemetry.</p><p>WGS84 geometry · JPL DE440s sunlight.</p><details><summary>Model notes</summary>${M.notes.map((n)=>`<p>${esc(n)}</p>`).join('')}</details><p>Full assumptions: README.md in this project.</p>`;
+  const about=M.about??['Pre-launch model fitted to the NOTAM zones and public vehicle figures; not telemetry.','WGS84 geometry · JPL DE440s sunlight.'];
+  $('about').innerHTML=`${about.map((s)=>`<p>${esc(s)}</p>`).join('')}<details><summary>Model notes</summary>${M.notes.map((n)=>`<p>${esc(n)}</p>`).join('')}</details><p>Full assumptions: ${M.readme_url?`<a href="${esc(M.readme_url)}" target="_blank" rel="noopener noreferrer">README ↗</a>`:'README.md in this project'}.</p>`;
   const narrow=matchMedia('(max-width:860px)');let panels={ctl:!narrow.matches,info:!narrow.matches};
   try{const saved=JSON.parse(localStorage.getItem('globe-panels'));if(saved&&!narrow.matches)panels={ctl:!!saved.ctl,info:!!saved.info};}catch{}
   function applyPanels(){document.body.classList.toggle('ctl-open',panels.ctl);document.body.classList.toggle('info-open',panels.info);document.querySelectorAll('[data-panel]').forEach((b)=>{b.classList.toggle('on',panels[b.dataset.panel]);b.setAttribute('aria-expanded',String(panels[b.dataset.panel]));});}
