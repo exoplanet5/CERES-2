@@ -98,6 +98,9 @@ export function validateMission(data) {
     require(finite(Date.parse(data.tle_ref.t0)) && finite(data.tle_ref.raan_rate_deg_per_min), 'Invalid TLE reference');
     for (const t of data.tle_ref.sets) require(t.l1?.length === 69 && t.l2?.length === 69 && typeof t.name === 'string' && t.l1[68] === A.tleChecksum(t.l1) && t.l2[68] === A.tleChecksum(t.l2), 'Invalid synthetic TLE');
   }
+  if (m.jelly) require(finite(m.solid_end_met) && ['prime_sun_deg','clear_ray_km','high_km'].every((k) => finite(m.jelly[k])) && Array.isArray(m.jelly.stages) && Array.isArray(m.jelly.cities), 'Invalid meta.jelly: it needs solid_end_met, prime_sun_deg, clear_ray_km, high_km, stages and cities');
+  if (m.stack) require(finite(m.stack.total_m) && finite(m.stack.burn_end) && Array.isArray(m.stack.states) && m.stack.states.length && m.stack.states.every((s) => s.segs.every((k) => m.stack.segments?.[k])), 'Invalid meta.stack');
+  if (m.extra_cities) require(Array.isArray(m.extra_cities) && m.extra_cities.every((c) => c.length === 4 && typeof c[0] === 'string' && finite(c[1]) && finite(c[2]) && finite(c[3])), 'Invalid meta.extra_cities');
   return data;
 }
 

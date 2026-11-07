@@ -150,7 +150,17 @@ def main():
         t0_presets=[dict(label="Open 23:28", time="23:28:00"), dict(label="Model 23:38", time="23:38:00"), dict(label="Close 23:50", time="23:50:00")],
         met_default=200, insertion_met=t_cut, period_s=orb["period"], orbit_revolutions=orb["revolutions"], inc=orb["i"], perigee_km=orb["mean_alt"], apogee_km=orb["mean_alt"], az=sol["steering"]["az"],
         s4_cutoff_met=t_cut, solid_end_met=t_s3,
-        stack=dict(s1_sep=t_s2i, s2_sep=t_s2 + 2.0, fairing=ev["Fairing jettison"]["t"], s3_sep=t_s3 + 3.0, s4_cut=t_cut),
+        # Rocket cartoon in the template's format: segment sizes in metres, and the states the stack passes through, each ending at a separation.
+        stack=dict(total_m=30, burn_end=t_cut,
+                   segments=dict(s1=dict(len=11.0, w=2.35, kind="solid", band=True), s2=dict(len=6.6, w=2.35, kind="solid"), s3=dict(len=3.4, w=1.9, kind="solid"),
+                                 s4=dict(len=1.5, w=1.9, kind="liquid"), fairing=dict(len=7.5, w=2.9, kind="fairing"), payload=dict(len=2.6, w=1.5, kind="payload")),
+                   states=[dict(until=t_s2i, segs=["s1", "s2", "s3", "s4", "fairing"], zoom=1, burn="solid"), dict(until=t_s2 + 2.0, segs=["s2", "s3", "s4", "fairing"], zoom=1.2, burn="solid"),
+                           dict(until=ev["Fairing jettison"]["t"], segs=["s3", "s4", "fairing"], zoom=1.7, burn=None), dict(until=t_s3 + 3.0, segs=["s3", "s4", "payload"], zoom=2.3, burn="solid"),
+                           dict(segs=["s4", "payload"], zoom=3.2, burn="liquid")]),
+        observer_home="Golmud",
+        # Corridor cities beyond the template's built-in list
+        extra_cities=[["Delingha", 97.36, 37.37, 2], ["Thimphu", 89.64, 27.47, 2], ["Guwahati", 91.74, 26.14, 2], ["Dhaka", 90.41, 23.81, 1], ["Kolkata", 88.36, 22.57, 1],
+                      ["Mandalay", 96.09, 21.96, 2], ["Bhubaneswar", 85.82, 20.30, 2], ["Yangon", 96.17, 16.84, 1], ["Port Blair", 92.74, 11.62, 2], ["Chennai", 80.27, 13.08, 1], ["Colombo", 79.86, 6.93, 1]],
         flight_segments=["ascent", "orbit"],
         powered_intervals=[[0.0, t_s1], [t_s2i, t_s2], [t_s3i, t_s3], [t_s4i, t_cut]],
         phases=[dict(until=0, label="Pre-launch"), dict(until=t_s1, label="S1 solid burn"), dict(until=t_s2i, label="Staging"), dict(until=t_s2, label="S2 solid burn"),
@@ -159,7 +169,10 @@ def main():
         views=[["Global", 95, 18, 3.6], ["Pad", pad[1], pad[0] - 1.0, 1.12], ["Jelly zone", 97, 36, 1.5], ["Corridor", 95, 14, 2.3]],
         visibility=dict(extent=[60, 124, -20, 58], grid_step_deg=0.25, time_step_s=2, levels=[10]),
         jelly=dict(prime_sun_deg=-6, clear_ray_km=J.CLEAR_RAY_KM, high_km=60, stages=[dict(label="S1", a=0.0, b=t_s1), dict(label="S2", a=t_s2i, b=t_s2), dict(label="S3", a=t_s3i, b=t_s3), dict(label="S4", a=t_s4i, b=t_cut)],
-                   cities=[[n, lo, la] for n, la, lo in J.CITIES]),
+                   cities=[[n, lo, la] for n, la, lo in J.CITIES],
+                   solid_label="S1–S3", viewers_title="Best views of the solid burns",
+                   pickup_note="At pickup the sunward ray grazes the ground, so the plume starts deep red. Clear sunlight: the ray passes at least 20 km above the surface. Lit S4 is a far fainter plume than the solid motors.",
+                   viewers_note="Sunlit S1–S3 only, sea-level sites. Bold: Sun at or below −6°, the darker sky. Dim: Sun already up."),
         notes=notes)
     t0_lo = datetime(2026, 11, 6, 23, 28, tzinfo=timezone.utc)
     t0_hi = datetime(2026, 11, 6, 23, 50, tzinfo=timezone.utc)

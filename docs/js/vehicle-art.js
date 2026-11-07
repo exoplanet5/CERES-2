@@ -1,23 +1,18 @@
-// Cartoon of the CERES-2 stack: a single slender core of three solid motors and a liquid upper stage under a hammerhead fairing, with no side
-// boosters.  Drawn nozzle-down on a square canvas.  Lengths follow the stack (about 30 m; 2.35 m core, 1.9 m S3, 2.9 m fairing), with the
-// width doubled so the shape reads at sprite size.  The stack shortens as stages separate, so each state has its own scale.
+// Cartoon of the launch vehicle, drawn nozzle-down on a square canvas from meta.stack: segment lengths and widths in metres, with the width doubled so the
+// shape reads at sprite size. The stack shortens as stages separate, so each state has its own segments and scale.
 const COL = {outline: '#0a0d12', body: ['#8d97a2', '#f6f8fa', '#d7dde3', '#7c8792'], dark: ['#27303a', '#59656f', '#39434d', '#1a2027'], band: '#c8372d', gold: ['#8a6a1f', '#ecc75a', '#c79c36', '#73581a']};
-const SEG = {  // length m, width m
-  s1: {len: 11.0, w: 2.35, kind: 'solid', band: true}, s2: {len: 6.6, w: 2.35, kind: 'solid'}, s3: {len: 3.4, w: 1.9, kind: 'solid'},
-  s4: {len: 1.5, w: 1.9, kind: 'liquid'}, fairing: {len: 7.5, w: 2.9, kind: 'fairing'}, payload: {len: 2.6, w: 1.5, kind: 'payload'},
-};
-const STATES = {
-  stack: {segs: ['s1', 's2', 's3', 's4', 'fairing'], zoom: 1, burn: 'solid'},
-  s2: {segs: ['s2', 's3', 's4', 'fairing'], zoom: 1.2, burn: 'solid'},
-  s3faired: {segs: ['s3', 's4', 'fairing'], zoom: 1.7, burn: null},
-  s3: {segs: ['s3', 's4', 'payload'], zoom: 2.3, burn: 'solid'},
-  s4: {segs: ['s4', 'payload'], zoom: 3.2, burn: 'liquid'},
-};
 const WIDTH_BOOST = 2.0;
 
+// Missions without meta.stack get a plain rocket: the full stack under power, then the payload.
+export const genericStack = (meta) => ({
+  total_m: 30, burn_end: meta.insertion_met,
+  segments: {core: {len: 18, w: 3, kind: 'solid', band: true}, upper: {len: 4, w: 3, kind: 'liquid'}, fairing: {len: 8, w: 3.6, kind: 'fairing'}, payload: {len: 3, w: 2, kind: 'payload'}},
+  states: [{until: meta.insertion_met, segs: ['core', 'upper', 'fairing'], zoom: 1, burn: 'liquid'}, {segs: ['payload'], zoom: 3.2, burn: null}],
+});
+
 export const vehicleStateAt = (met, stack, poweredAt) => {
-  const state = met < stack.s1_sep ? 'stack' : met < stack.s2_sep ? 's2' : met < stack.fairing ? 's3faired' : met < stack.s3_sep ? 's3' : 's4';
-  return {state, burning: poweredAt(met) && met <= stack.s4_cut};
+  const found = stack.states.findIndex((s) => s.until !== undefined && met < s.until);
+  return {state: found < 0 ? stack.states.length - 1 : found, burning: poweredAt(met) && met <= stack.burn_end};
 };
 
 function shade(g, x, w, stops) {
@@ -43,9 +38,9 @@ function flame(g, x, y, w, len, kind) {
   }
 }
 
-export function drawVehicle(g, size, stateName, burning) {
-  const st = STATES[stateName], total = 30, unit = size * .72 / total * st.zoom, x = size / 2;
-  const segs = st.segs.map((k) => SEG[k]), h = segs.reduce((a, q) => a + q.len, 0) * unit;
+export function drawVehicle(g, size, stack, state, burning) {
+  const st = stack.states[state], unit = size * .72 / stack.total_m * st.zoom, x = size / 2;
+  const segs = st.segs.map((k) => stack.segments[k]), h = segs.reduce((a, q) => a + q.len, 0) * unit;
   let y = size / 2 + h / 2;                               // base of the stack; the sprite centre stays on the stack's centre
   const baseW = segs[0].w * unit * WIDTH_BOOST;
   g.clearRect(0, 0, size, size); g.lineJoin = 'round';

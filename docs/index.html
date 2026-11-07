@@ -33,6 +33,7 @@ select{flex:1;min-width:0;background:var(--input);border:1px solid var(--border)
 table{width:100%;border-collapse:collapse;font-size:11px;font-variant-numeric:tabular-nums}td,th{text-align:left;padding:4px 3px;vertical-align:top}th{color:var(--dim);font-weight:400;border-bottom:1px solid var(--border)}#status td:first-child{color:var(--dim);width:105px}#status td+td{overflow-wrap:anywhere}
 #jelly td:first-child{color:var(--dim);width:135px}#viewers tr.dark td{font-weight:700;color:var(--sun)}#viewers tr.dark .time-jump{color:var(--sun);font-weight:700}#viewers tr.day td{opacity:.55}details{margin-block:8px}summary{cursor:pointer}#events{font-size:10px}#events td{padding-block:6px}#events tr.past{opacity:.55}#events tr.next{background:var(--surface)}.time-jump{background:none;border:0;padding:0;color:var(--fg);cursor:pointer;font:inherit;white-space:nowrap;text-decoration:underline;text-decoration-color:var(--dim);text-underline-offset:3px}
 #t0presets .btn,#views .btn{font-size:11px;padding-inline:6px}#tle{max-width:100%;font-size:10px;line-height:1.5;white-space:pre;overflow:auto;background:var(--input);border:1px solid var(--border);padding:8px;border-radius:4px}
+.no-jelly .jelly-only{display:none}
 #legend{flex:none;background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:9px;pointer-events:auto}#legend>div{display:flex;justify-content:space-between;gap:8px}#legend>div+div{margin-top:5px}#legend span{white-space:nowrap}#legend i{display:inline-block;width:14px;border-top:2px solid var(--fg);vertical-align:3px;margin-right:4px}#legend i.d{border-top-style:dashed}
 .sky-mark{position:fixed;left:0;top:0;z-index:12;display:flex;align-items:center;gap:5px;font-size:10px;pointer-events:none;text-shadow:0 0 4px var(--halo),0 0 2px var(--halo)}.sky-mark i{display:none}.sky-mark.edge i{display:block;width:0;height:0;border-left:7px solid currentColor;border-top:4px solid transparent;border-bottom:4px solid transparent}.sky-mark.sun{color:var(--sun)}.sky-mark.moon{color:#cfd6dd}#notice{position:fixed;left:50%;transform:translateX(-50%);bottom:45px;max-width:min(560px,calc(100vw - 32px));z-index:40;background:var(--panel);padding:8px 12px;border-radius:5px;pointer-events:none}#notice:empty{display:none}
 #inspect{position:fixed;z-index:25;pointer-events:none;white-space:pre-line;background:var(--panel);border:1px solid var(--border);border-radius:4px;padding:7px 9px;font-size:11px}
@@ -49,8 +50,8 @@ table{width:100%;border-collapse:collapse;font-size:11px;font-variant-numeric:ta
 <body>
 <header id="bar">
 <button class="btn tog" data-panel="ctl" aria-label="Toggle controls" aria-controls="ctl">☰</button>
-<div class="title"><span id="ttl">CERES-2</span><span id="ttlsub"></span></div><div id="subt"></div>
-<div id="clock"><span class="utcd"><span class="k">UTC</span> <span id="c-date">—</span></span><span class="utct"><span id="c-utc">—</span>Z</span><span id="c-met">T+00:05:00</span><span class="cst"><span class="k">CST</span> <span id="c-cst">—</span></span></div>
+<div class="title"><span id="ttl">CERES-2 Y3</span><span id="ttlsub"></span></div><div id="subt"></div>
+<div id="clock"><span class="utcd"><span class="k">UTC</span> <span id="c-date">—</span></span><span class="utct"><span id="c-utc">—</span>Z</span><span id="c-met">T+00:05:00</span><span class="cst"><span class="k" id="c-zone">CST</span> <span id="c-cst">—</span></span></div>
 <button class="btn tog" data-panel="info" aria-label="Toggle flight information" aria-controls="info">ⓘ</button>
 </header>
 <main id="view" aria-label="Interactive Earth and launch trajectory. Drag to turn the globe, right-drag or two-finger drag to tilt and rotate the view around its centre, scroll or pinch to zoom. Click the globe for its sky chart; hover or click the track to inspect time and altitude."></main>
@@ -71,7 +72,7 @@ table{width:100%;border-collapse:collapse;font-size:11px;font-variant-numeric:ta
 <h2>Camera & observer</h2><div class="btns" id="views"></div><div class="btns" style="margin-top:8px"><button class="btn" id="skybtn">✶ Observer sky chart</button></div>
 <div class="layers">
 <label class="chk"><input id="o-follow" type="checkbox">Follow vehicle</label><label class="chk"><input id="o-jelly" type="checkbox">Sunlit plume</label>
-<label class="chk" title="Night-side ground that sees the sunlit powered vehicle at 10 degrees or more: white for the solid burns, green for S4"><input id="o-vis" type="checkbox">10° jelly zone</label><label class="chk"><input id="o-falls" type="checkbox">Stage falls</label>
+<label class="chk jelly-only" title="Night-side ground that sees the sunlit powered vehicle at 10 degrees or more: white for the solid burns, green for S4"><input id="o-vis" type="checkbox">10° jelly zone</label><label class="chk"><input id="o-falls" type="checkbox">Stage falls</label>
 <label class="chk" title="Hipparcos stars, the Sun and the Moon"><input id="o-sky" type="checkbox">Stars, Sun, Moon</label>
 <label class="chk"><input id="o-term" type="checkbox">Terminators</label>
 <label class="chk"><input id="o-zones" type="checkbox">NOTAM zones</label><label class="chk"><input id="o-labels" type="checkbox">Labels</label>
@@ -85,21 +86,21 @@ table{width:100%;border-collapse:collapse;font-size:11px;font-variant-numeric:ta
 </div>
 <aside id="info" class="panel" aria-label="Flight information">
 <div id="model-badge"></div><h2>Vehicle status</h2><table id="status"><tbody></tbody></table>
-<h2>Twilight jelly at this T0</h2><table id="jelly"><tbody></tbody></table>
-<p class="note">At pickup the sunward ray grazes the ground, so the plume starts deep red. Clear sunlight: the ray passes at least 20 km above the surface. Lit S4 is a far fainter plume than the solid motors.</p>
-<h2>Best views of the solid burns</h2><table id="viewers"><thead><tr><th>City · sky chart</th><th>Max el</th><th>At</th><th>Sun</th></tr></thead><tbody></tbody></table>
-<p class="note">Sunlit S1–S3 only, sea-level sites. Bold: Sun at or below −6°, the darker sky. Dim: Sun already up.</p>
+<h2 class="jelly-only">Twilight jelly at this T0</h2><table id="jelly" class="jelly-only"><tbody></tbody></table>
+<p class="note jelly-only" id="jelly-note">At pickup the sunward ray grazes the ground, so the plume starts deep red. Clear sunlight: the ray passes at least 20 km above the surface.</p>
+<h2 class="jelly-only" id="viewers-title">Best views of the burns</h2><table id="viewers" class="jelly-only"><thead><tr><th>City · sky chart</th><th>Max el</th><th>At</th><th>Sun</th></tr></thead><tbody></tbody></table>
+<p class="note jelly-only" id="viewers-note">Sunlit burns only, sea-level sites. Bold: Sun at or below −6°, the darker sky. Dim: Sun already up.</p>
 <h2>Published hazard zones</h2><table id="hazard"><thead><tr><th>NOTAM</th><th>Window UTC</th><th>Impact</th></tr></thead><tbody></tbody></table>
 <p class="note">Published hazard windows are not liftoff or impact-time measurements. Impact times are model values.</p>
 <h2>Flight timeline</h2><table id="events"><thead><tr><th>MET · seek</th><th>UTC</th><th>Event</th></tr></thead><tbody></tbody></table>
 <h2>Synthetic TLE</h2><pre id="tle"></pre><button class="btn" id="copytle">Copy TLE</button>
-<p class="note">Model TLE for the modeled 500 km orbit, not a catalog element set. A changed T0 shifts epoch and RAAN for the same Earth-fixed path; the viewer uses numerical track samples, not SGP4 propagation.</p>
+<p class="note" id="tle-note"></p>
 <h2>Model & sources</h2><div class="note" id="about"></div>
 </aside>
 <div id="sun-mark" class="sky-mark sun" hidden><i></i><span>Sun</span></div><div id="moon-mark" class="sky-mark moon" hidden><i></i><span>Moon</span></div>
 <div id="inspect" hidden></div><div id="notice" role="status" aria-live="polite"></div>
 <footer id="credit">Illustration: Mickey · base map NASA Blue Marble</footer>
-<div id="loading"><div>Loading <b>CERES-2</b> launch model…</div><div id="loadmsg"></div></div>
+<div id="loading"><div>Loading <b>CERES-2 Y3</b> launch model…</div><div id="loadmsg"></div></div>
 <script type="module">
 import('./js/app.js').catch((error)=>{
   console.error(error);

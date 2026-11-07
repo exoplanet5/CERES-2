@@ -116,18 +116,7 @@ export const CITIES=[...CHINA_CITIES,
   ['Kathmandu',85.30,27.70,1],
   ['New Delhi',77.20,28.60,1],
   ['Hanoi',105.80,21.00,1],
-  // Corridor of the CERES-2 second flight
-  ['Delingha',97.36,37.37,2],
-  ['Thimphu',89.64,27.47,2],
-  ['Guwahati',91.74,26.14,2],
-  ['Dhaka',90.41,23.81,1],
-  ['Kolkata',88.36,22.57,1],
-  ['Mandalay',96.09,21.96,2],
-  ['Bhubaneswar',85.82,20.30,2],
-  ['Yangon',96.17,16.84,1],
-  ['Port Blair',92.74,11.62,2],
-  ['Chennai',80.27,13.08,1],
-  ['Colombo',79.86,6.93,1],
+  // A mission's own corridor cities belong in meta.extra_cities.
 ];
 
 export const CITY_DISTANCES={1:2.9,2:1.75,3:1.38};

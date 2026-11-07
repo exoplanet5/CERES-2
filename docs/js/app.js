@@ -13,9 +13,10 @@ import {createMapTiles} from './map-tiles.js';
 import {createBoundaryLayer} from './boundary-layer.js';
 import {CITIES,cityInRange} from './cities.js';
 import {GlobeCamera} from './globe-camera.js';
-import {createJellyZones,createZoneLayer,viewerTable} from './jelly-zone.js';
+import {createZoneLayer} from './jelly-zone.js';
+import {createJellyZones,viewerTable} from './jelly-grid.js';
 import {StellarBackground,createMoon,SKY_BACKGROUND} from './sky-background.js';
-import {drawVehicle,vehicleStateAt} from './vehicle-art.js';
+import {drawVehicle,vehicleStateAt,genericStack} from './vehicle-art.js';
 
 const $ = (id) => document.getElementById(id);
 const C = {sun:'#ffd54f',accent:'#4fc3f7',ink:'#e8eaed',dim:'#9aa4ae',ascent:'#d95926',orbit:'#c77dff',footprint:'#199e70',s4:'#7ad97a'};
@@ -47,6 +48,9 @@ async function start() {
     const s=shipAt(met),lit=sunlightClearance(s.p,sunAt(T0+met*1000))>0,powered=poweredAt(met);
     return {lit,powered,color:powered?(lit?C.sun:C.ascent):C.orbit};
   }
+  // Optional mission fields. meta.jelly adds the jelly panel and 10° zones; meta.solid_end_met splits the sunlit arc into solid and upper-stage plumes.
+  const hasJelly=!!M.jelly,hasSolid=Number.isFinite(M.solid_end_met),solidEnd=hasSolid?M.solid_end_met:MET_END,seco=M.s4_cutoff_met??M.insertion_met,localZone=M.local_time??{label:'CST',offset_h:8},stack=M.stack??genericStack(M),ALL_CITIES=[...CITIES,...(M.extra_cities??[])];
+  if(!hasJelly)state.show.vis=false;
   let J=computeJelly(ASC,sunAt,t0ms()), tablesDirty=true;
   const dirty=()=>{tablesDirty=true;};
   $('ttl').textContent=M.vehicle; $('ttlsub').textContent=M.date;
@@ -54,6 +58,12 @@ async function start() {
   $('profile-summary').textContent=`${M.perigee_km.toFixed(0)} × ${M.apogee_km.toFixed(0)} km · i ${M.inc.toFixed(2)}°`;
   $('datev').textContent=M.date;
   $('model-badge').textContent='Pre-launch model';
+  $('c-zone').textContent=localZone.label;
+  $('tle-note').textContent=`Model TLE for the modeled ${Math.round((M.perigee_km+M.apogee_km)/2)} km orbit, not a catalog element set. A changed T0 shifts epoch and RAAN for the same Earth-fixed path; the viewer uses numerical track samples, not SGP4 propagation.`;
+  document.body.classList.toggle('no-jelly',!hasJelly);
+  if(M.jelly?.pickup_note)$('jelly-note').textContent=M.jelly.pickup_note;
+  if(M.jelly?.viewers_title)$('viewers-title').textContent=M.jelly.viewers_title;
+  if(M.jelly?.viewers_note)$('viewers-note').textContent=M.jelly.viewers_note;
 
   // Phones and low-memory devices skip the 8K maps and, at 2x, MSAA, which costs about 270 MB on a large screen. Hi-dpi desktops keep MSAA: thin lines are this page's main content.
   const lightDevice=Math.min(innerWidth,innerHeight)<=600||(navigator.deviceMemory??8)<8;
@@ -161,7 +171,7 @@ async function start() {
   const PAD=A.llToVec(...M.pad),pad=sprite(squareTex,.021);pad.position.set(...PAD.map((v)=>v*1.002));scene.add(pad);
   for(const z of data.zones){const pts=[];for(let i=0;i<z.ring.length-1;i++){const a=z.ring[i],b=z.ring[i+1],dl=((b[0]-a[0]+540)%360)-180,n=Math.max(1,Math.ceil(Math.max(Math.abs(dl),Math.abs(b[1]-a[1]))/.1));for(let j=0;j<n;j++)pts.push(...A.llToVec(a[0]+dl*j/n,a[1]+(b[1]-a[1])*j/n,1.0015));}pts.push(...A.llToVec(...z.ring.at(-1),1.0015));zoneGroup.add(fillMesh(z.ring,C.ink,.18),line(pts,{color:z.color,width:1.5}));
     const o=label(`${z.role==='boosters'?'Booster':z.role} drop zone\n${z.id} · ${z.t0}–${z.t1} UTC`,'zone below');o.position.set(...A.llToVec(...z.centroid,1.002));zoneLabels.add(o);}
-  for(const [name,lon,lat,tier] of CITIES){const p=A.llToVec(lon,lat,1.001),dot=sprite(dotTex,.007);dot.position.set(...p);dot.userData={tier,city:name};cityGroup.add(dot);const o=label(name,'city');o.position.set(...p);o.userData={tier,city:name};o.element.title=`Sky chart over ${name}`;o.element.tabIndex=0;o.element.setAttribute('role','button');o.element.addEventListener('click',(e)=>openSky({name,lon,lat},false,{x:e.clientX,y:e.clientY}));o.element.addEventListener('keydown',(e)=>{if(e.key==='Enter')openSky({name,lon,lat});});cityGroup.add(o);}
+  for(const [name,lon,lat,tier] of ALL_CITIES){const p=A.llToVec(lon,lat,1.001),dot=sprite(dotTex,.007);dot.position.set(...p);dot.userData={tier,city:name};cityGroup.add(dot);const o=label(name,'city');o.position.set(...p);o.userData={tier,city:name};o.element.title=`Sky chart over ${name}`;o.element.tabIndex=0;o.element.setAttribute('role','button');o.element.addEventListener('click',(e)=>openSky({name,lon,lat},false,{x:e.clientX,y:e.clientY}));o.element.addEventListener('keydown',(e)=>{if(e.key==='Enter')openSky({name,lon,lat});});cityGroup.add(o);}
   const pickup=sprite(starTex,.025),pickupLabel=label('','below');scene.add(pickup,pickupLabel);
   // Compact location pin: a solid teardrop whose tip sits on the clicked ground point.
   const siteTex=texture((g,s)=>{const r=s*.27,cx=s/2,cy=r+s*.05,tip=s*.97;g.beginPath();g.arc(cx,cy,r,Math.PI*.85,Math.PI*.15);g.quadraticCurveTo(cx+r*.62,cy+r*1.25,cx,tip);g.quadraticCurveTo(cx-r*.62,cy+r*1.25,cx-r*Math.cos(Math.PI*.15),cy+r*Math.sin(Math.PI*.15));g.closePath();g.fillStyle=C.accent;g.strokeStyle='#061018';g.lineWidth=s*.055;g.lineJoin='round';g.stroke();g.fill();g.fillStyle='#061018';g.beginPath();g.arc(cx,cy,r*.34,0,2*Math.PI);g.fill();},96);
@@ -169,14 +179,18 @@ async function start() {
   // Solid motors draw the bold sunlit arc; the small S4 plume stays thin, because it is far fainter.
   function buildJellyLayer(){clear(jellyGroup);let run=[],kind=null;
     const flush=()=>{if(run.length>=6){if(kind==='solid')jellyGroup.add(line(run,{color:C.sun,width:8,opacity:.16}),line(run,{color:C.sun,width:2.6}));else jellyGroup.add(line(run,{color:C.s4,width:1.9}));}run=[];};
-    for(let i=0;i<ASC.n;i++){const met=ASC.metAt(i),on=J.lit[i]&&poweredAt(met),k=met<=M.solid_end_met?'solid':'s4';if(on){if(k!==kind){flush();kind=k;}run.push(...ASC.pt(i,1));}else flush();}flush();
+    for(let i=0;i<ASC.n;i++){const met=ASC.metAt(i),on=J.lit[i]&&poweredAt(met),k=met<=solidEnd?'solid':'s4';if(on){if(k!==kind){flush();kind=k;}run.push(...ASC.pt(i,1));}else flush();}flush();
     if(J.pickup){pickup.position.set(...drawPoint(J.pickup));pickupLabel.position.copy(pickup.position);pickupLabel.element.textContent=`Sunlight pickup\n${A.fmtMET(J.pickup.met)} · ${J.pickup.alt.toFixed(1)} km`;}
   }
   // 10-degree jelly zones for this T0.  The shell's night clip is per pixel from the live Sun vector, so it ends exactly on the Sun 0 line.
-  const zoneAt=createJellyZones(M,ASC,poweredAt,sunAt),visLayer=createZoneLayer(earthMat.uniforms.sunDir,{s4:'0.478, 0.851, 0.478'});
+  const visLayer=createZoneLayer(earthMat.uniforms.sunDir,{s4:'0.478, 0.851, 0.478'},hasJelly?M.visibility.extent:null);let zoneAt=null;
   visLayer.renderOrder=-1;scene.add(visLayer);
-  let zones=null,viewers=[],zoneTimer=null;
-  function buildZones(){zones=zoneAt(t0ms(),J.pickup?.met??0);visLayer.setZones(zones);viewers=viewerTable(M.jelly.cities,ASC,M.solid_end_met,J,sunAt,t0ms(),poweredAt);dirty();}
+  let zones=null,viewers=[],zoneTimer=null,zoneVersion=0,zoneShown=0,zoneWorker=null;
+  // The grid is 80,000 cells by a few hundred samples, 60-70 ms on an M1 Max, so a worker computes it and the result is applied when it arrives. Without a worker it runs inline.
+  if(hasJelly&&typeof Worker==='function')try{zoneWorker=new Worker(new URL('./zone-worker.js',import.meta.url),{type:'module'});zoneWorker.postMessage({mission:data});zoneWorker.onmessage=({data:m})=>{if(m.version===zoneVersion)applyZones(m.zones);};zoneWorker.onerror=()=>{zoneWorker.terminate();zoneWorker=null;buildZones();};}catch{zoneWorker=null;}
+  function applyZones(Z){zones=Z;visLayer.setZones(Z);zoneShown++;dirty();}
+  function buildZones(){if(!hasJelly)return;const T0=t0ms(),pickupMet=J.pickup?.met??0;viewers=viewerTable(M.jelly.cities,ASC,solidEnd,J,sunAt,T0,poweredAt);dirty();zoneVersion++;
+    if(zoneWorker)zoneWorker.postMessage({version:zoneVersion,T0,pickupMet});else applyZones((zoneAt??=createJellyZones(M,ASC,poweredAt,sunAt))(T0,pickupMet));}
   function buildTrajectory(){clear(trajGroup);clear(gtGroup);clear(eventGroup);clear(fallGroup);
     const p=label(M.pad_name);p.position.copy(pad.position);eventGroup.add(p);
     for(const [key,tr] of Object.entries(T)){const seg=data.tracks[key],on=M.flight_segments.includes(key);(on?trajGroup:fallGroup).add(line(tr.pts(1),{color:seg.color,width:on?1.8:1.2,dashed:!!seg.dashed}));if(on)gtGroup.add(line(tr.pts(1,0,tr.n-1,true),{color:C.ink,width:1,opacity:.26}));}
@@ -186,17 +200,17 @@ async function start() {
   function onT0Change(){J=computeJelly(ASC,sunAt,t0ms());buildJellyLayer();clearTimeout(zoneTimer);zoneTimer=setTimeout(buildZones,120);dirty();}
 
   // One cartoon per flight state: the stack shortens as stages separate, and burning states carry a flame.
-  const vehicleTex=new Map(),vehicleTexture=(state,burning)=>{const key=`${state}/${burning}`;if(!vehicleTex.has(key))vehicleTex.set(key,texture((g,s)=>drawVehicle(g,s,state,burning),256));return vehicleTex.get(key);};
-  const ship=sprite(vehicleTexture('stack',false),.062),shipLabel=label(M.vehicle,'vehicle');ship.renderOrder=8;scene.add(ship,shipLabel);let shipKey='stack/false';
+  const vehicleTex=new Map(),vehicleTexture=(state,burning)=>{const key=`${state}/${burning}`;if(!vehicleTex.has(key))vehicleTex.set(key,texture((g,s)=>drawVehicle(g,s,stack,state,burning),256));return vehicleTex.get(key);};
+  const ship=sprite(vehicleTexture(0,false),.062),shipLabel=label(M.vehicle,'vehicle');ship.renderOrder=8;scene.add(ship,shipLabel);let shipKey='0/false';
   const glowTex=texture((g,s)=>{const r=s/2,gr=g.createRadialGradient(r,r,0,r,r,r);gr.addColorStop(0,'rgba(255,244,211,.55)');gr.addColorStop(.22,'rgba(255,230,150,.36)');gr.addColorStop(.7,'rgba(120,190,255,.1)');gr.addColorStop(1,'rgba(120,190,255,0)');g.fillStyle=gr;g.fillRect(0,0,s,s);},128);
   const glow=sprite(glowTex,.10);glow.material.blending=THREE.AdditiveBlending;glow.material.depthWrite=false;glow.renderOrder=7;scene.add(glow);
   let fp=null,fpLam=-1;
   function updateFootprint(s){if(!state.show.fp){if(fp)fp.visible=false;return;}const lam=A.footprintDeg(s.alt,A.MIN_ELEVATION_DEG);if(!fp||Math.abs(lam-fpLam)>.03){if(fp){scene.remove(fp);fp.geometry.dispose();materials.delete(fp.material);fp.material.dispose();}fp=line(circle(lam),{color:C.footprint,dashed:true,width:1.5});scene.add(fp);fpLam=lam;}fp.quaternion.setFromUnitVectors(Y,new THREE.Vector3(...s.u));fp.visible=s.alt>1;}
   let skySite=null;
-  const sky=createSkyChart({shipAt,metEnd:()=>MET_END,styleAt,seco:M.s4_cutoff_met,vehicle:M.vehicle,fmtMET:A.fmtMET,sunSubpoint,
+  const sky=createSkyChart({shipAt,metEnd:()=>MET_END,styleAt,seco,vehicle:M.vehicle,fmtMET:A.fmtMET,sunSubpoint,
     sunPosition:sunAt,getState:()=>({met:state.met,t0ms:t0ms()}),onJump:(met)=>{setPlaying(false);setMet(met);},onSite:(site)=>{skySite=site;siteMark.position.set(...A.llToVec(site.lon,site.lat,1.001));}});
   function openSky(site,focus=false,near=null){sky.open(site,focus,near).catch((e)=>message(`Sky chart: ${e.message}`));}
-  const [home,homeLon,homeLat]=CITIES.find((c)=>c[0]==='Golmud');
+  const [home,homeLon,homeLat]=ALL_CITIES.find((c)=>c[0]===M.observer_home)??[M.pad_name,...M.pad];
   $('skybtn').onclick=()=>openSky(skySite||{name:home,lon:homeLon,lat:homeLat},true);
 
   function setFollow(on){state.follow=on;$('o-follow').checked=on;}
@@ -226,12 +240,12 @@ async function start() {
   function shareURL(){const v=cam.get(),q=new URLSearchParams({profile:profile.id,mission:entry.id,t0:A.fmtHMS(t0ms()),met:state.met.toFixed(3),cam:`${v.lon.toFixed(3)},${v.lat.toFixed(3)},${(1+v.range).toFixed(3)},${v.heading.toFixed(1)},${v.tilt.toFixed(1)}`,follow:state.follow?'1':'0',speed:state.speed});for(const [k,v]of Object.entries(state.show))q.set(k,v?'1':'0');if(sky.isOpen()&&skySite)q.set('sky',`${skySite.lat.toFixed(4)},${skySite.lon.toFixed(4)}`);return `${location.origin}${location.pathname}?${q}`;}
   $('link').onclick=()=>{const url=shareURL();history.replaceState(null,'',url);copyText(url,$('link'));};$('copytle').onclick=()=>copyText($('tle').textContent,$('copytle'));
   $('events').onclick=(e)=>{const row=e.target.closest('[data-met]');if(row){setPlaying(false);setMet(+row.dataset.met);}};
-  $('legend').innerHTML=`<div>${M.flight_segments.map((k)=>`<span><i style="border-color:${data.tracks[k].color}"></i>${esc(data.tracks[k].label)}</span>`).join('')}<span><i style="border-color:${C.sun};border-top-width:3px"></i>Lit solid</span><span><i style="border-color:${C.s4}"></i>Lit S4</span></div><div><span><i class="d" style="border-color:${C.footprint}"></i>${A.MIN_ELEVATION_DEG}° circle</span><span><i style="border-color:#fff"></i>${A.MIN_ELEVATION_DEG}° zone</span><span><i style="border-color:${C.sun}"></i>Sun 0°</span><span><i style="border-color:${C.accent}"></i>Sun −12°</span></div>`;
+  $('legend').innerHTML=`<div>${M.flight_segments.map((k)=>`<span><i style="border-color:${data.tracks[k].color}"></i>${esc(data.tracks[k].label)}</span>`).join('')}${hasSolid?`<span><i style="border-color:${C.sun};border-top-width:3px"></i>Lit solid</span><span><i style="border-color:${C.s4}"></i>Lit S4</span>`:`<span><i style="border-color:${C.sun};border-top-width:3px"></i>Lit plume</span>`}</div><div><span><i class="d" style="border-color:${C.footprint}"></i>${A.MIN_ELEVATION_DEG}° circle</span>${hasJelly?`<span><i style="border-color:#fff"></i>${A.MIN_ELEVATION_DEG}° zone</span>`:''}<span><i style="border-color:${C.sun}"></i>Sun 0°</span><span><i style="border-color:${C.accent}"></i>Sun −12°</span></div>`;
   $('about').innerHTML=`<p>Pre-launch model fitted to the NOTAM zones and public vehicle figures; not telemetry.</p><p>WGS84 geometry · JPL DE440s sunlight.</p><details><summary>Model notes</summary>${M.notes.map((n)=>`<p>${esc(n)}</p>`).join('')}</details><p>Full assumptions: README.md in this project.</p>`;
   const narrow=matchMedia('(max-width:860px)');let panels={ctl:!narrow.matches,info:!narrow.matches};
-  try{const saved=JSON.parse(localStorage.getItem('ceres2-panels'));if(saved&&!narrow.matches)panels={ctl:!!saved.ctl,info:!!saved.info};}catch{}
+  try{const saved=JSON.parse(localStorage.getItem('globe-panels'));if(saved&&!narrow.matches)panels={ctl:!!saved.ctl,info:!!saved.info};}catch{}
   function applyPanels(){document.body.classList.toggle('ctl-open',panels.ctl);document.body.classList.toggle('info-open',panels.info);document.querySelectorAll('[data-panel]').forEach((b)=>{b.classList.toggle('on',panels[b.dataset.panel]);b.setAttribute('aria-expanded',String(panels[b.dataset.panel]));});}
-  document.querySelectorAll('[data-panel]').forEach((b)=>b.onclick=()=>{const k=b.dataset.panel,on=!panels[k];if(narrow.matches)panels={ctl:false,info:false};panels[k]=on;applyPanels();try{localStorage.setItem('ceres2-panels',JSON.stringify(panels));}catch{}});
+  document.querySelectorAll('[data-panel]').forEach((b)=>b.onclick=()=>{const k=b.dataset.panel,on=!panels[k];if(narrow.matches)panels={ctl:false,info:false};panels[k]=on;applyPanels();try{localStorage.setItem('globe-panels',JSON.stringify(panels));}catch{}});
   narrow.onchange=()=>{panels={ctl:!narrow.matches,info:!narrow.matches};applyPanels();};applyPanels();
   addEventListener('keydown',(e)=>{if(document.activeElement?.matches('input,select,textarea,button,[role="button"]'))return;if(e.code==='Space'){e.preventDefault();setPlaying(!state.playing);}if(e.key==='ArrowRight')setMet(state.met+(e.shiftKey?300:10));if(e.key==='ArrowLeft')setMet(state.met-(e.shiftKey?300:10));});
 
@@ -244,20 +258,20 @@ async function start() {
     document.querySelectorAll('[data-t0]').forEach((b)=>b.classList.toggle('on',clockSeconds(b.dataset.t0)===state.t0));tablesDirty=false;
   }
   // The jelly numbers follow T0: the Earth-fixed path is fixed and only the Sun moves.
-  function buildJellyTables(T0){const cfg=M.jelly,fr=A.siteFrame(...M.pad),met=(m)=>A.fmtMET(m).replace(/^T\+00:/,'T+');
+  function buildJellyTables(T0){if(!hasJelly)return;const cfg=M.jelly,fr=A.siteFrame(...M.pad),met=(m)=>A.fmtMET(m).replace(/^T\+00:/,'T+');
     let refr=null,clear=null;const high=[];
-    for(let i=0;i<ASC.n;i++){const alt=ASC.alt[i],t=ASC.metAt(i),dep=J.dep[i];if(!refr&&alt>=A.shadowAltKm(dep))refr={t,alt};const ray=dep>0?(A.R_JELLY+alt)*Math.cos(dep*A.D2R)-A.R_JELLY:alt;if(!clear&&J.lit[i]&&ray>=cfg.clear_ray_km)clear={t,alt};if(J.lit[i]&&poweredAt(t)&&t<=M.solid_end_met&&alt>=cfg.high_km)high.push(t);}
+    for(let i=0;i<ASC.n;i++){const alt=ASC.alt[i],t=ASC.metAt(i),dep=J.dep[i];if(!refr&&alt>=A.shadowAltKm(dep))refr={t,alt};const ray=dep>0?(A.R_JELLY+alt)*Math.cos(dep*A.D2R)-A.R_JELLY:alt;if(!clear&&J.lit[i]&&ray>=cfg.clear_ray_km)clear={t,alt};if(J.lit[i]&&poweredAt(t)&&t<=solidEnd&&alt>=cfg.high_km)high.push(t);}
     const lit=(a,b)=>{let n=0;for(let i=0;i<ASC.n;i++){const t=ASC.metAt(i);if(t>=a&&t<b&&J.lit[i])n+=ASC.dt;}return n;};
     const fmtPt=(p)=>p?`${met(p.t??p.met)} · ${(p.alt).toFixed(0)} km`:'—',P=J.pickup,area=(x)=>`${(x/1e6).toFixed(2)} M km²`;
     const rows=[['Sun at pad',`${A.lookAngles(fr,sunAt(T0)).el.toFixed(2)}° at T0`],['Sunlight pickup',P?fmtPt(P):'None'],["With 34′ refraction",fmtPt(refr)],['Clear sunlight',fmtPt(clear)],
       [`Solid plume ≥${cfg.high_km} km`,high.length?`${met(high[0])} – ${met(high.at(-1))}`:'—'],...cfg.stages.map((q)=>[`${q.label} lit`,`${lit(q.a,q.b).toFixed(0)} of ${(q.b-q.a).toFixed(0)} s`])];
-    if(zones)rows.push(['10° zone, S1–S3',area(zones.areaSolid)],['…with Sun ≤'+cfg.prime_sun_deg+'°',area(zones.areaPrime)]);
+    if(zones)rows.push([`10° zone, ${cfg.solid_label??'solid burns'}`,area(zones.areaSolid)],['…with Sun ≤'+cfg.prime_sun_deg+'°',area(zones.areaPrime)]);
     $('jelly').querySelector('tbody').innerHTML=rows.map(([k,v])=>`<tr><td>${esc(k)}</td><td>${esc(v)}</td></tr>`).join('');
     $('viewers').querySelector('tbody').innerHTML=viewers.filter((v)=>v.el>=5).slice(0,14).map((v)=>`<tr class="${v.sun<=cfg.prime_sun_deg?'dark':v.sun>0?'day':''}"><td><button class="time-jump" data-site="${esc(v.name)}" data-lon="${v.lon}" data-lat="${v.lat}">${esc(v.name)}</button></td><td>${v.el.toFixed(0)}°</td><td>${met(v.met)}</td><td>${v.sun.toFixed(1)}°</td></tr>`).join('');
   }
   $('viewers').onclick=(e)=>{const b=e.target.closest('[data-site]');if(b)openSky({name:b.dataset.site,lon:+b.dataset.lon,lat:+b.dataset.lat},false,{x:e.clientX,y:e.clientY});};
   function updateUI(s){const utc=t0ms()+state.met*1000,st=styleAt(state.met,t0ms()),ll=A.vecToLL(...s.u),fr=A.siteFrame(ll.lon,ll.lat),sunAlt=A.lookAngles(fr,sunAt(utc)).el;
-    $('c-date').textContent=A.fmtDate(utc);$('c-utc').textContent=A.fmtHMS(utc);$('c-met').textContent=A.fmtMET(state.met);$('c-cst').textContent=A.fmtHMS(utc,8);$('metv').textContent=A.fmtMET(state.met);if(document.activeElement!==$('met'))$('met').value=state.met;
+    $('c-date').textContent=A.fmtDate(utc);$('c-utc').textContent=A.fmtHMS(utc);$('c-met').textContent=A.fmtMET(state.met);$('c-cst').textContent=A.fmtHMS(utc,localZone.offset_h);$('metv').textContent=A.fmtMET(state.met);if(document.activeElement!==$('met'))$('met').value=state.met;
     if(tablesDirty)buildTables();
     const a=shipAt(state.met-1),b=shipAt(state.met+1),v=b.p.map((x,i)=>(x-a.p[i])/2),w=7.2921158553e-5;
     const speed=state.met>1&&state.met<MET_END-1?Math.hypot(v[0]+w*s.p[2],v[1],v[2]-w*s.p[0]).toFixed(2)+' km/s':'—';
@@ -300,7 +314,7 @@ async function start() {
   function sceneChanged(now,tilesShown){
     const p=camera.position,q=camera.quaternion,u=earthMat.uniforms;
     let shown=0,bit=0;for(const on of Object.values(state.show))shown|=(on?1:0)<<bit++;
-    const next=[p.x,p.y,p.z,q.x,q.y,q.z,q.w,view.clientWidth,view.clientHeight,renderer.getPixelRatio(),state.met,state.t0,tilesShown,u.dayTex.value.id,u.nightTex.value.id,boundaryLayer.stats().segments,shown];
+    const next=[p.x,p.y,p.z,q.x,q.y,q.z,q.w,view.clientWidth,view.clientHeight,renderer.getPixelRatio(),state.met,state.t0,tilesShown,u.dayTex.value.id,u.nightTex.value.id,boundaryLayer.stats().segments,shown,zoneShown];
     if(gpuJudged&&now-lastDraw<1000&&now-lastInput>=1000&&next.every((v,k)=>Math.abs(v-drawnState[k])<=1e-7))return false;
     drawnState=next;lastDraw=now;draws++;return true;
   }
@@ -327,7 +341,7 @@ async function start() {
     boundaryLayer.update(now,view.clientWidth,view.clientHeight,renderer.getPixelRatio(),state.show.borders);
     if(!sceneChanged(now,tilesShown)){requestAnimationFrame(frame);return;}
     const sty=styleAt(state.met,t0ms());earthMat.uniforms.lights.value=state.show.lights?1:0;termGroup.quaternion.setFromUnitVectors(Y,new THREE.Vector3(...sv));termGroup.visible=state.show.term;
-    ship.position.set(...drawPoint(s));shipLabel.position.copy(ship.position);{const v=vehicleStateAt(state.met,M.stack,poweredAt),key=`${v.state}/${v.burning}`;if(key!==shipKey){shipKey=key;ship.material.map=vehicleTexture(v.state,v.burning);ship.material.needsUpdate=true;}}ship.material.color.setScalar(sty.lit?1:.45);glow.position.copy(ship.position);glow.visible=state.show.jelly&&sty.lit&&sty.powered;if(glow.visible){const solid=state.met<=M.solid_end_met,k=clamp((s.alt-20)/200,0,1);glow.scale.setScalar(solid?.045+.115*k:.035);}
+    ship.position.set(...drawPoint(s));shipLabel.position.copy(ship.position);{const v=vehicleStateAt(state.met,stack,poweredAt),key=`${v.state}/${v.burning}`;if(key!==shipKey){shipKey=key;ship.material.map=vehicleTexture(v.state,v.burning);ship.material.needsUpdate=true;}}ship.material.color.setScalar(sty.lit?1:.45);glow.position.copy(ship.position);glow.visible=state.show.jelly&&sty.lit&&sty.powered;if(glow.visible){const solid=state.met<=solidEnd,k=clamp((s.alt-20)/200,0,1);glow.scale.setScalar(solid?.045+.115*k:.035);}
     const ahead=shipAt(Math.min(MET_END,state.met+2)),p0=ship.position.clone().project(camera),p1=new THREE.Vector3(...drawPoint(ahead)).project(camera);if(state.met>0&&state.met<MET_END)ship.material.rotation=Math.atan2((p1.y-p0.y)*view.clientHeight,(p1.x-p0.x)*view.clientWidth)-Math.PI/2;
     updateFootprint(s);gtGroup.visible=state.show.gt;gridGroup.visible=state.show.grid;zoneGroup.visible=state.show.zones;zoneLabels.visible=state.show.zones;jellyGroup.visible=state.show.jelly;visLayer.visible=state.show.vis;fallGroup.visible=state.show.falls;cityGroup.visible=state.show.cities;
     for(const g of [zoneLabels,eventGroup])for(const o of g.children)if(o.isCSS2DObject)o.visible=state.show.labels&&visible(o.position);
@@ -349,5 +363,5 @@ async function start() {
   requestAnimationFrame((t)=>{frame(t);$('loading').remove();});
   const want=qs.get('sky'),city=CITIES.find((c)=>c[0].toLowerCase()===want?.toLowerCase()),ll=(want||'').split(',').map(Number);
   if(city)openSky({name:city[0],lon:city[1],lat:city[2]});else if(ll.length===2&&ll.every(Number.isFinite)&&Math.abs(ll[0])<=90&&Math.abs(ll[1])<=180)openSky({lat:ll[0],lon:ll[1],custom:true});
-  window.__ceres2={zones:()=>zones,viewers:()=>viewers,state,setMet,setT0,setPlaying,flyTo,camera,view:()=>cam.get(),setView:(view)=>cam.set(view),pick:(x,y)=>cam.groundAt(x,y),trackAt,observerMarker:siteMark,shareURL,sky,shipAt,jelly:()=>J,footprint:()=>fp,boundaryCoverage:boundaryData.coverage,earth:earthMat,mapLOD:mapTiles,boundaries:boundaryLayer,draws:()=>draws,meta:M,moon,skyBg,visLayer,renderer,groups:{trajGroup,gtGroup,jellyGroup,fallGroup,termGroup,cityGroup,gridGroup,zoneGroup},profile:profile.id,mission:entry.id};
+  window.__globe={zones:()=>zones,viewers:()=>viewers,state,setMet,setT0,setPlaying,flyTo,camera,view:()=>cam.get(),setView:(view)=>cam.set(view),pick:(x,y)=>cam.groundAt(x,y),trackAt,observerMarker:siteMark,shareURL,sky,shipAt,jelly:()=>J,footprint:()=>fp,boundaryCoverage:boundaryData.coverage,earth:earthMat,mapLOD:mapTiles,boundaries:boundaryLayer,draws:()=>draws,meta:M,moon,skyBg,visLayer,renderer,groups:{trajGroup,gtGroup,jellyGroup,fallGroup,termGroup,cityGroup,gridGroup,zoneGroup},profile:profile.id,mission:entry.id};
 }
