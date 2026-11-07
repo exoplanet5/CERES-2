@@ -38,7 +38,7 @@ export class TileCache {
     this.pump();
   }
   pump(){
-    if(this.stopped)return;
+    if(this.stopped||this.paused)return;
     for(const [key,tile]of this.wanted){
       if(this.active>=this.concurrency)break;
       const existing=this.entries.get(key);

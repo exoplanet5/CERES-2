@@ -30,3 +30,16 @@ export function boundarySegments(lines,maxStep=.35,radius=1.0005){
   }
   return new Float32Array(positions);
 }
+
+// Splits segments into lon-lat cells, so borders out of view can be dropped. Tested at 30, 15 and 10 degrees: 15 keeps most of the gain with far fewer objects than 10.
+export function boundaryChunks(positions,cellDeg=15){
+  const cells=new Map(),deg=180/Math.PI;
+  for(let i=0;i<positions.length;i+=6){
+    const x=positions[i],y=positions[i+1],z=positions[i+2];
+    const lon=Math.atan2(-z,x)*deg,lat=Math.asin(y/Math.hypot(x,y,z))*deg;
+    const key=`${Math.floor((lon+180)/cellDeg)}/${Math.floor((lat+90)/cellDeg)}`;
+    let cell=cells.get(key);if(!cell)cells.set(key,cell=[]);
+    for(let j=0;j<6;j++)cell.push(positions[i+j]);
+  }
+  return [...cells.values()].map((cell)=>new Float32Array(cell));
+}

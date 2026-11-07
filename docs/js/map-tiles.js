@@ -3,11 +3,13 @@ import {TILE_CONFIG,TileCache,worldPixels,projectedPixels,chooseLevel,tileBounds
 
 // The Earth shader fades the day map out by mu=-0.055, so a tile wholly beyond this angle from the Sun draws nothing from its texture.
 const DAY_EDGE=Math.acos(-.065);
+const SWEEP_COS=Math.cos(Math.PI/180);  // more than 1 degree between tile updates, 160 ms apart
 
 export function createMapTiles({scene,camera,renderer,earthMaterial,loadTexture,baseWidth=8192}){
   const group=new THREE.Group();scene.add(group);
   const frustum=new THREE.Frustum(),matrix=new THREE.Matrix4(),direction=new THREE.Vector3(),sun=earthMaterial.uniforms.sunDir.value;
-  let level=-1,required=0,last=-Infinity,lastView='',selection=[];
+  const lastDirection=new THREE.Vector3();
+  let level=-1,required=0,last=-Infinity,lastView='',selection=[],lastDistance=0;
   const cache=new TileCache({load:async(tile)=>{
     const texture=await loadTexture(`./tex/tiles/${tile.key}.jpg`);
     const {west,east,north,south}=tile;
@@ -19,7 +21,7 @@ export function createMapTiles({scene,camera,renderer,earthMaterial,loadTexture,
     const material=new THREE.ShaderMaterial({uniforms:{...earthMaterial.uniforms,dayTex:{value:texture},tileRect:{value:new THREE.Vector4(tile.x/tile.columns,1-(tile.y+1)/tile.rows,1/tile.columns,1/tile.rows)},imageRect:{value:new THREE.Vector4(g,g,span,span)}},vertexShader:earthMaterial.vertexShader,fragmentShader:earthMaterial.fragmentShader});
     const mesh=new THREE.Mesh(geometry,material);mesh.visible=false;group.add(mesh);
     return {mesh,texture};
-  },dispose:({mesh,texture})=>{group.remove(mesh);mesh.geometry.dispose();mesh.material.dispose();texture.dispose();}});
+  },dispose:({mesh,texture})=>{group.remove(mesh);mesh.geometry.dispose();mesh.material.dispose();texture.dispose();texture.image?.close?.();}});
   function candidates(z){
     if(z<0)return [];
     const d=camera.position.length(),horizon=Math.acos(1/d);direction.copy(camera.position).normalize();
@@ -38,18 +40,26 @@ export function createMapTiles({scene,camera,renderer,earthMaterial,loadTexture,
   function update(now,width,height){
     if(now-last>=160){
       last=now;
+      // While the view sweeps fast, tiles in flight finish but no new ones start: most would be out of view before they arrive.
+      const distance=camera.position.length();direction.copy(camera.position).normalize();
+      cache.paused=lastDistance>0&&(direction.dot(lastDirection)<SWEEP_COS||Math.abs(distance/lastDistance-1)>.03);
+      lastDirection.copy(direction);lastDistance=distance;
       const key=[...camera.position.toArray(),...camera.quaternion.toArray(),camera.aspect,width,height,renderer.getPixelRatio()].map((x)=>x.toFixed(4)).join(',')+sun.toArray().map((x)=>x.toFixed(3)).join(',');
       if(key!==lastView){
         lastView=key;camera.updateMatrixWorld();matrix.multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse);frustum.setFromProjectionMatrix(matrix);
         required=projectedPixels(camera.position.length(),camera.fov,height,renderer.getPixelRatio());
+        const previous=level;
         level=chooseLevel(required,level,baseWidth);selection=candidates(level);
-        while(selection.length>TILE_CONFIG.maxTiles&&level>=0){level=level<=2?-1:level-1;selection=candidates(level);}
+        // Stepping up to a finer tile level needs room to spare, so a view near the limit does not flip between levels while dragged.
+        const room=()=>previous>=0&&level>previous?TILE_CONFIG.maxTiles*.8:TILE_CONFIG.maxTiles;
+        while(selection.length>room()&&level>=0){level=level<=2?-1:level-1;selection=candidates(level);}
         cache.select(selection);
       }
       cache.pump();
     }
     for(const entry of cache.entries.values())if(entry.value)entry.value.mesh.visible=false;
-    for(const entry of cache.ready())entry.value.mesh.visible=true;
+    const shown=cache.ready();for(const entry of shown)entry.value.mesh.visible=true;
+    return shown.length;
   }
   return {update,group,setBaseWidth:(width)=>{baseWidth=width;lastView='';},stats:()=>({...cache.stats(),level,requiredPixels:required,worldWidth:level>=0?worldPixels(level):baseWidth,nativeLimit:21600,estimatedTileBytes:cache.entries.size*(677**2)*4*4/3}),dispose:()=>{cache.clear();scene.remove(group);}};
 }

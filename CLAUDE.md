@@ -29,15 +29,18 @@ Everything runs with `~/.venvs/astro313/bin/python`. Serve the page with `python
 
 ## Page
 
-`docs/` is a copy of `~/launch/CZ-6A/docs`, with the same mission contract (`~/launch/CZ-6A/PROFILE_FORMAT.md`). Unlike CZ-6A, this page has a jelly panel and dynamic 10° zones, because this mission's point is the jelly. The added `meta` fields are `met_default`, `s4_cutoff_met`, `solid_end_met`, `stack` and `jelly`, and there is an optional top-level `moon` table.
+`docs/` began as a copy of `~/launch/CZ-6A/docs`, with the same mission contract (`~/launch/CZ-6A/PROFILE_FORMAT.md`). `~/launch/launch-page-template` was built from this page, so start new pages there, with the `launch-page` skill, and carry generic fixes across by hand. Unlike CZ-6A, this page has a jelly panel and dynamic 10° zones, because this mission's point is the jelly. The added `meta` fields are `met_default`, `s4_cutoff_met`, `solid_end_met`, `stack` and `jelly`, and there is an optional top-level `moon` table.
 
 - **Zones (`js/jelly-zone.js`):** the grid holds only the elevation fields. The night clip is per pixel in the shader, from the same `sunDir` uniform as the Sun 0° line, so never put it back on the grid: that caused the stair-steps and the mismatch at the terminator. Area figures use the pickup epoch.
 - **Sky (`js/sky-background.js`):** stars and Sun are a separate rotation-only scene drawn before a depth clear, so `renderer.autoClear` is false. The scene is Earth-fixed, so stars turn at −GMST.
 - **Sprites:** canvas textures are sRGB and sprites do not write depth; otherwise colours wash out and sprite quads punch holes in later transparent layers.
-- **Base maps and tiles:** the page opens on the 4K WebP pair, and `sharpenBase` swaps in the 8K maps only when the view needs them, so never block startup on 8K. The 8K base covers up to 8192 px wide, so only tile levels 2–3 exist. `chooseLevel` takes the current base width. Tiles carry day imagery only, so `candidates` skips any tile wholly past the day edge; keep `DAY_EDGE` in step with the fade in the Earth shader.
-- **Headless Chrome is slow:** allow a few seconds per view. Coverage is SwiftShader only unless noted.
+- **Base maps and tiles:** the page opens on the 4K WebP pair, and `sharpenBase` swaps in the 8K maps only when the view needs them and the GPU has passed `judgeGpu`, so never block startup on 8K. Maps decode off the main thread, except in Safari, which is untested. The 8K base covers up to 8192 px wide, so only tile levels 2–3 exist. `chooseLevel` takes the current base width. Tiles carry day imagery only, so `candidates` skips any tile wholly past the day edge; keep `DAY_EDGE` in step with the fade in the Earth shader. New tiles do not start during a fast sweep.
+- **Render loop:** `frame` redraws only when `sceneChanged` says the picture can change, plus once a second and for a second after input. Anything new that moves on its own, or changes without input, must join that list or it lags by up to a second.
+- **Borders:** 15° chunks, hidden past the horizon in `boundary-layer.js`, because a view cone runs through the Earth and frustum culling alone keeps the far hemisphere. Dashed lines restart at chunk edges, which is harmless.
+- **Slow GPUs:** `judgeGpu` times frames with a blocking readback, because frame gaps look fine while commands queue up. Over 33 ms lowers the pixel ratio and stops further 8K fetches. Phones and low-memory devices skip the 8K maps and, at 2×, MSAA. Other desktops keep MSAA, the user's choice (2026-11-07), because thin lines are the page's main content.
+- **Headless Chrome:** software GL is slow, so allow a few seconds per view. Real-GPU coverage is this Mac's M1 Max only.
 
-The page and the Python agree: pickup to 0.1 s, solid zone area to about 0.3 %. Recheck both after a change. Test in headless Chrome over CDP with `--use-angle=swiftshader --enable-unsafe-swiftshader`, using `window.__ceres2`.
+The page and the Python agree: pickup to 0.1 s, solid zone area to about 0.3 %. Recheck both after a change. Test in headless Chrome over CDP with `window.__ceres2`: `--use-angle=metal` for the real GPU, or `--use-angle=swiftshader --enable-unsafe-swiftshader` as a slow one. `check_page.py` from the `launch-page` skill runs the performance budgets on this page too.
 
 ## After the launch
 

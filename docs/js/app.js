@@ -55,7 +55,9 @@ async function start() {
   $('datev').textContent=M.date;
   $('model-badge').textContent='Pre-launch model';
 
-  const view=$('view'), renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
+  // Phones and low-memory devices skip the 8K maps and, at 2x, MSAA, which costs about 270 MB on a large screen. Hi-dpi desktops keep MSAA: thin lines are this page's main content.
+  const lightDevice=Math.min(innerWidth,innerHeight)<=600||(navigator.deviceMemory??8)<8;
+  const view=$('view'), renderer=new THREE.WebGLRenderer({antialias:!lightDevice||devicePixelRatio<2,powerPreference:'high-performance'});
   renderer.setPixelRatio(Math.min(devicePixelRatio,2)); view.appendChild(renderer.domElement);
   const labels=new CSS2DRenderer(); Object.assign(labels.domElement.style,{position:'absolute',inset:'0',pointerEvents:'none'});view.appendChild(labels.domElement);
   renderer.autoClear=false;renderer.setClearColor(SKY_BACKGROUND);
@@ -97,11 +99,17 @@ async function start() {
     return camera.position.clone().addScaledVector(d,t).lengthSq()>=.9999 && p.clone().project(camera).z<1;
   }
 
-  const loader=new THREE.TextureLoader();
-  const loadTex=(url)=>new Promise((resolve,reject)=>loader.load(url,(t)=>{t.colorSpace=THREE.NoColorSpace;t.anisotropy=renderer.capabilities.getMaxAnisotropy();resolve(t);},undefined,()=>reject(new Error(`Texture missing: ${url}`))));
+  // Maps decode off the main thread, so a large one arriving does not freeze the page. Safari keeps the plain loader: this path is untested there.
+  const isSafari=/^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+  const bitmapLoader=typeof createImageBitmap==='function'&&!isSafari?new THREE.ImageBitmapLoader().setOptions({imageOrientation:'flipY',premultiplyAlpha:'none',colorSpaceConversion:'none'}):null,plainLoader=new THREE.TextureLoader();
+  const loadTex=(url)=>new Promise((resolve,reject)=>{
+    const ready=(t)=>{t.colorSpace=THREE.NoColorSpace;t.anisotropy=renderer.capabilities.getMaxAnisotropy();resolve(t);},fail=()=>reject(new Error(`Texture missing: ${url}`));
+    if(bitmapLoader)bitmapLoader.load(url,(image)=>{const t=new THREE.Texture(image);t.flipY=false;t.needsUpdate=true;ready(t);},undefined,fail);
+    else plainLoader.load(url,ready,undefined,fail);
+  });
   $('loadmsg').textContent='Loading Blue Marble…';
   // The light 4K pair opens the page. sharpenBase fetches the 8K maps afterwards, where the GPU and screen can hold them.
-  const big=renderer.capabilities.maxTextureSize>=8192&&Math.min(innerWidth,innerHeight)>600;
+  const big=renderer.capabilities.maxTextureSize>=8192&&!lightDevice;
   const lightTex=(webp,jpg)=>loadTex(webp).catch(()=>loadTex(jpg));
   const [dayTex,nightTex,boundaryRaw,moonTex,starCatalog]=await Promise.all([lightTex('./tex/earth_day_4k.webp','./tex/earth_day_4k.jpg'),lightTex('./tex/earth_night_4k.webp','./tex/earth_night.jpg'),fetchJSON('./data/boundaries.json'),loadTex('./tex/moon_1024.jpg'),fetchJSON('./data/hipparcos.json')]);
   const boundaryData=validateBoundaries(boundaryRaw);
@@ -134,10 +142,10 @@ async function start() {
   const mapTiles=createMapTiles({scene,camera,renderer,earthMaterial:earthMat,loadTexture:loadTex,baseWidth:4096});
   // Tiles sharpen only the day map, so the dark side gets the 8K night map once a view outgrows 4K. The 8K day map is
   // needed only when too many lit tiles are in view to use them. A failed fetch keeps the light map.
-  let sharpenNight=big,sharpenDay=big;
-  const swapBase=(name,url)=>loadTex(url).then((texture)=>{const old=earthMat.uniforms[name].value;earthMat.uniforms[name].value=texture;old.dispose();});
+  let sharpenNight=big,sharpenDay=big,gpuJudged=false;
+  const swapBase=(name,url)=>loadTex(url).then((texture)=>{const old=earthMat.uniforms[name].value;earthMat.uniforms[name].value=texture;old.dispose();old.image?.close?.();});
   function sharpenBase(){
-    if(!sharpenNight&&!sharpenDay)return;
+    if(!gpuJudged||(!sharpenNight&&!sharpenDay))return;
     const {level,requiredPixels}=mapTiles.stats();
     if(requiredPixels<=4096*1.12)return;
     if(sharpenNight){sharpenNight=false;swapBase('nightTex','./tex/earth_night_8k.webp').catch(()=>{});}
@@ -286,25 +294,52 @@ async function start() {
     el.classList.add('edge');el.firstChild.style.transform=`rotate(${a}rad)`;el.style.transform=`translate(${px}px,${py}px)`;el.dataset.x=px;el.dataset.y=py;}
   function updateSkyMarkers(sv,utc){const on=state.show.sky&&state.show.labels;placeSkyMarker(sunMark,new THREE.Vector3(...sv),on,150);
     if(moonAt){const q=moonAt(utc),r=Math.hypot(...q),sunEdge=sunMark.classList.contains('edge')&&!sunMark.hidden?{x:+sunMark.dataset.x,y:+sunMark.dataset.y}:null;placeSkyMarker(moonMark,new THREE.Vector3(q[0]/r,q[1]/r,q[2]/r),on,r/A.RE,sunEdge);}else moonMark.hidden=true;}
+  // Redraw only when the picture can change. Whatever this list misses is caught by the input window or the once-a-second redraw.
+  let drawnState=[],lastDraw=-Infinity,lastInput=-Infinity,draws=0;
+  for(const type of ['pointerdown','pointerup','wheel','keydown','input','change','click'])addEventListener(type,()=>{lastInput=performance.now();},{capture:true,passive:true});
+  function sceneChanged(now,tilesShown){
+    const p=camera.position,q=camera.quaternion,u=earthMat.uniforms;
+    let shown=0,bit=0;for(const on of Object.values(state.show))shown|=(on?1:0)<<bit++;
+    const next=[p.x,p.y,p.z,q.x,q.y,q.z,q.w,view.clientWidth,view.clientHeight,renderer.getPixelRatio(),state.met,state.t0,tilesShown,u.dayTex.value.id,u.nightTex.value.id,boundaryLayer.stats().segments,shown];
+    if(gpuJudged&&now-lastDraw<1000&&now-lastInput>=1000&&next.every((v,k)=>Math.abs(v-drawnState[k])<=1e-7))return false;
+    drawnState=next;lastDraw=now;draws++;return true;
+  }
+  // Judge the GPU by real frame cost, timed to completion with a blocking readback: frame gaps look fine while commands queue up.
+  // Three frames from the fourth draw on, then every 5 s. The 8K maps wait for the first verdict. Over 33 ms lowers the pixel ratio, in steps down to 1, and stops further 8K fetches.
+  const gl=renderer.getContext(),syncPixel=new Uint8Array(4),syncGpu=()=>gl.readPixels(0,0,1,1,gl.RGBA,gl.UNSIGNED_BYTE,syncPixel);
+  let frameCosts=[],nextProbe=0;
+  function judgeGpu(cost){
+    frameCosts.push(cost);if(frameCosts.length<3)return;
+    const median=frameCosts.sort((a,b)=>a-b)[1];frameCosts=[];gpuJudged=true;nextProbe=performance.now()+5000;
+    if(median<=33)return;
+    sharpenNight=sharpenDay=false;
+    const ratio=renderer.getPixelRatio();
+    if(ratio>1){renderer.setPixelRatio(Math.max(1,ratio-.5));resize();nextProbe=0;}
+  }
   let last=null,lastUI=0;
   function frame(now){const dt=Math.min(.1,(now-(last??now))/1000);last=now;
     if(state.live){const met=(Date.now()-t0ms())/1000;state.met=clamp(met,metMin,MET_END);if(met>=MET_END){state.live=false;$('live').classList.remove('on');message('Modeled flight complete.');}}
     else if(state.playing){state.met=Math.min(MET_END,state.met+dt*state.speed);if(state.met===MET_END)setPlaying(false);}
-    const s=shipAt(state.met),sv=sunVecAt(t0ms()+state.met*1000),sty=styleAt(state.met,t0ms());earthMat.uniforms.sunDir.value.set(...sv);earthMat.uniforms.lights.value=state.show.lights?1:0;termGroup.quaternion.setFromUnitVectors(Y,new THREE.Vector3(...sv));termGroup.visible=state.show.term;
+    const s=shipAt(state.met),nowUtc=t0ms()+state.met*1000,sv=sunVecAt(nowUtc);earthMat.uniforms.sunDir.value.set(...sv);
+    if(state.follow&&!cam.fly)cam.approach(new THREE.Vector3(...s.u),1-Math.exp(-dt*2.5));
+    cam.update(now,dt);
+    const tilesShown=mapTiles.update(now,view.clientWidth,view.clientHeight);sharpenBase();
+    boundaryLayer.update(now,view.clientWidth,view.clientHeight,renderer.getPixelRatio(),state.show.borders);
+    if(!sceneChanged(now,tilesShown)){requestAnimationFrame(frame);return;}
+    const sty=styleAt(state.met,t0ms());earthMat.uniforms.lights.value=state.show.lights?1:0;termGroup.quaternion.setFromUnitVectors(Y,new THREE.Vector3(...sv));termGroup.visible=state.show.term;
     ship.position.set(...drawPoint(s));shipLabel.position.copy(ship.position);{const v=vehicleStateAt(state.met,M.stack,poweredAt),key=`${v.state}/${v.burning}`;if(key!==shipKey){shipKey=key;ship.material.map=vehicleTexture(v.state,v.burning);ship.material.needsUpdate=true;}}ship.material.color.setScalar(sty.lit?1:.45);glow.position.copy(ship.position);glow.visible=state.show.jelly&&sty.lit&&sty.powered;if(glow.visible){const solid=state.met<=M.solid_end_met,k=clamp((s.alt-20)/200,0,1);glow.scale.setScalar(solid?.045+.115*k:.035);}
     const ahead=shipAt(Math.min(MET_END,state.met+2)),p0=ship.position.clone().project(camera),p1=new THREE.Vector3(...drawPoint(ahead)).project(camera);if(state.met>0&&state.met<MET_END)ship.material.rotation=Math.atan2((p1.y-p0.y)*view.clientHeight,(p1.x-p0.x)*view.clientWidth)-Math.PI/2;
     updateFootprint(s);gtGroup.visible=state.show.gt;gridGroup.visible=state.show.grid;zoneGroup.visible=state.show.zones;zoneLabels.visible=state.show.zones;jellyGroup.visible=state.show.jelly;visLayer.visible=state.show.vis;fallGroup.visible=state.show.falls;cityGroup.visible=state.show.cities;
-    if(state.follow&&!cam.fly)cam.approach(new THREE.Vector3(...s.u),1-Math.exp(-dt*2.5));
-    cam.update(now,dt);
-    mapTiles.update(now,view.clientWidth,view.clientHeight);sharpenBase();
-    boundaryLayer.update(now,view.clientWidth,view.clientHeight,renderer.getPixelRatio(),state.show.borders);
     for(const g of [zoneLabels,eventGroup])for(const o of g.children)if(o.isCSS2DObject)o.visible=state.show.labels&&visible(o.position);
     pickup.visible=!!J.pickup&&state.show.jelly;pickupLabel.visible=pickup.visible&&state.show.labels&&visible(pickup.position);shipLabel.visible=state.show.labels&&visible(ship.position);
     siteMark.visible=!!skySite&&sky.isOpen()&&visible(siteMark.position);
     const cityDistance=camera.position.length();
     for(const o of cityGroup.children)o.visible=visible(o.position)&&cityInRange(o.userData.tier,cityDistance)&&(!o.isCSS2DObject||state.show.labels);
-    const nowUtc=t0ms()+state.met*1000,gmst=A.gmstRad(nowUtc);moon.visible=state.show.sky&&!!moonAt;if(moon.visible)moon.update(moonAt(nowUtc),gmst,A.RE);
-    renderer.clear();if(state.show.sky){skyBg.render(renderer,camera,gmst,sv);renderer.clearDepth();}renderer.render(scene,camera);labels.render(scene,camera);updateSkyMarkers(sv,nowUtc);declutterLabels();if(sky.isOpen()&&now-lastUI>80)sky.render();if(now-lastUI>100){lastUI=now;updateUI(s);}requestAnimationFrame(frame);
+    const gmst=A.gmstRad(nowUtc);moon.visible=state.show.sky&&!!moonAt;if(moon.visible)moon.update(moonAt(nowUtc),gmst,A.RE);
+    const probing=draws>3&&performance.now()>=nextProbe;if(probing)syncGpu();const drawStart=performance.now();
+    renderer.clear();if(state.show.sky){skyBg.render(renderer,camera,gmst,sv);renderer.clearDepth();}renderer.render(scene,camera);
+    if(probing){syncGpu();judgeGpu(performance.now()-drawStart);}
+    labels.render(scene,camera);updateSkyMarkers(sv,nowUtc);declutterLabels();if(sky.isOpen()&&now-lastUI>80)sky.render();if(now-lastUI>100){lastUI=now;updateUI(s);}requestAnimationFrame(frame);
   }
   function resize(){const w=view.clientWidth,h=view.clientHeight,oldScale=cameraScale();camera.aspect=w/h;cam.scaleRange(cameraScale()/oldScale);renderer.setSize(w,h);labels.setSize(w,h);camera.updateProjectionMatrix();for(const m of materials)m.resolution.set(w,h);}
   addEventListener('resize',resize);resize();
@@ -314,5 +349,5 @@ async function start() {
   requestAnimationFrame((t)=>{frame(t);$('loading').remove();});
   const want=qs.get('sky'),city=CITIES.find((c)=>c[0].toLowerCase()===want?.toLowerCase()),ll=(want||'').split(',').map(Number);
   if(city)openSky({name:city[0],lon:city[1],lat:city[2]});else if(ll.length===2&&ll.every(Number.isFinite)&&Math.abs(ll[0])<=90&&Math.abs(ll[1])<=180)openSky({lat:ll[0],lon:ll[1],custom:true});
-  window.__ceres2={zones:()=>zones,viewers:()=>viewers,state,setMet,setT0,setPlaying,flyTo,camera,view:()=>cam.get(),setView:(view)=>cam.set(view),pick:(x,y)=>cam.groundAt(x,y),trackAt,observerMarker:siteMark,shareURL,sky,shipAt,jelly:()=>J,footprint:()=>fp,boundaryCoverage:boundaryData.coverage,earth:earthMat,mapLOD:mapTiles,boundaries:boundaryLayer,meta:M,moon,skyBg,visLayer,renderer,groups:{trajGroup,gtGroup,jellyGroup,fallGroup,termGroup,cityGroup,gridGroup,zoneGroup},profile:profile.id,mission:entry.id};
+  window.__ceres2={zones:()=>zones,viewers:()=>viewers,state,setMet,setT0,setPlaying,flyTo,camera,view:()=>cam.get(),setView:(view)=>cam.set(view),pick:(x,y)=>cam.groundAt(x,y),trackAt,observerMarker:siteMark,shareURL,sky,shipAt,jelly:()=>J,footprint:()=>fp,boundaryCoverage:boundaryData.coverage,earth:earthMat,mapLOD:mapTiles,boundaries:boundaryLayer,draws:()=>draws,meta:M,moon,skyBg,visLayer,renderer,groups:{trajGroup,gtGroup,jellyGroup,fallGroup,termGroup,cityGroup,gridGroup,zoneGroup},profile:profile.id,mission:entry.id};
 }

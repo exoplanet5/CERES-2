@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import {LineSegments2} from 'three/addons/lines/LineSegments2.js';
 import {LineSegmentsGeometry} from 'three/addons/lines/LineSegmentsGeometry.js';
 import {LineMaterial} from 'three/addons/lines/LineMaterial.js';
-import {validateBoundaries,boundarySegments} from './boundaries.js';
+import {validateBoundaries,boundarySegments,boundaryChunks} from './boundaries.js';
 import {boundaryLevel,projectedPixels} from './map-lod.js';
 
 const FILES={coarse:'boundaries.json',medium:'boundaries-medium.json',fine:'boundaries-fine.json'};
@@ -10,7 +10,7 @@ const STYLES={regions:{width:.65,opacity:.30},countries:{width:1.15,opacity:.65}
 
 export function createBoundaryLayer({scene,camera,initialData}){
   const group=new THREE.Group();scene.add(group);
-  const dataCache=new Map([['coarse',initialData]]),failed=new Map();
+  const dataCache=new Map([['coarse',initialData]]),failed=new Map(),direction=new THREE.Vector3();
   let current=null,wanted='coarse',pending=null,shown=true,width=1,height=1;
   const stats={level:null,wanted:'coarse',loading:false,failures:0,segments:0,worldview:initialData.source.worldview};
   function replace(data,id){
@@ -19,12 +19,18 @@ export function createBoundaryLayer({scene,camera,initialData}){
       for(const [key,style]of Object.entries(STYLES)){
         const positions=boundarySegments(data.layers[key]);segments+=positions.length/6;
         if(!positions.length)continue;
-        const geometry=new LineSegmentsGeometry().setPositions(positions);
+        const geometries=boundaryChunks(positions).map((chunk)=>new LineSegmentsGeometry().setPositions(chunk));
         for(const halo of [true,false]){
           const material=new LineMaterial({color:halo?'#05080c':'#e8eaed',linewidth:style.width+(halo?1.25:0),opacity:halo?.38:style.opacity,transparent:true,depthTest:true,depthWrite:false,dashed:!!style.dashed,dashSize:.006,gapSize:.004});
           material.resolution.set(width,height);
-          const mesh=new LineSegments2(geometry,material);if(style.dashed)mesh.computeLineDistances();
-          next.add(mesh);
+          for(const geometry of geometries){
+            const mesh=new LineSegments2(geometry,material);if(style.dashed)mesh.computeLineDistances();
+            geometry.computeBoundingSphere();
+            const {center,radius}=geometry.boundingSphere,length=center.length();
+            mesh.userData.center=center.clone().normalize();
+            mesh.userData.reach=Math.acos(Math.max(-1,Math.min(1,(1+length*length-radius*radius)/(2*length))));
+            next.add(mesh);
+          }
         }
       }
     }catch(error){dispose(next);throw error;}
@@ -50,6 +56,10 @@ export function createBoundaryLayer({scene,camera,initialData}){
     shown=visible;group.visible=visible;
     if(w!==width||h!==height){width=w;height=h;group.traverse((o)=>o.material?.resolution.set(w,h));}
     if(!visible)return;
+    // The view cone runs through the Earth, so frustum culling alone keeps the far hemisphere's borders. Drop chunks past the horizon.
+    const distance=camera.position.length(),horizon=Math.acos(1/distance)+.01;
+    direction.copy(camera.position).normalize();
+    for(const mesh of current.children)mesh.visible=direction.dot(mesh.userData.center)>=Math.cos(Math.min(Math.PI,horizon+mesh.userData.reach));
     const required=projectedPixels(camera.position.length(),camera.fov,h,pixelRatio),target=boundaryLevel(required);
     // Boundary levels use the imagery thresholds, with 12% hysteresis as well.
     const threshold=target==='fine'?10800:target==='medium'&&wanted==='coarse'?4096:wanted==='fine'?10800:4096;
